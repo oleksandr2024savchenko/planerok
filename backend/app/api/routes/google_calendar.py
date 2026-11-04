@@ -3,7 +3,7 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, status
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep, UserIdDep
 from app.config import get_settings
 from app.schemas import CalendarStatusRead
 from app.services import google_calendar
@@ -21,7 +21,8 @@ async def _sync_safely() -> None:
 
 
 @router.get("/calendar/status", response_model=CalendarStatusRead)
-async def calendar_status(session: SessionDep) -> CalendarStatusRead:
+async def calendar_status(session: SessionDep, user_id: UserIdDep) -> CalendarStatusRead:
+    del user_id
     connected, live, last_sync = await google_calendar.calendar_status(session)
     return CalendarStatusRead(connected=connected, live=live, last_sync_at=last_sync)
 

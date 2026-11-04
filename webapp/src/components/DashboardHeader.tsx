@@ -4,15 +4,17 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { formatLongToday, greeting } from "@/lib/date";
+import { formatLongToday, formatTime, greeting } from "@/lib/date";
+import type { CalendarStatus } from "@/lib/types";
 
 interface DashboardHeaderProps {
   firstName: string | null;
   done: number;
   total: number;
+  calendar?: CalendarStatus | null;
 }
 
-export function DashboardHeader({ firstName, done, total }: DashboardHeaderProps) {
+export function DashboardHeader({ firstName, done, total, calendar }: DashboardHeaderProps) {
   // Time-dependent text is computed after mount to avoid hydration mismatches.
   const [labels, setLabels] = useState<{ hello: string; today: string } | null>(null);
   useEffect(() => setLabels({ hello: greeting(), today: formatLongToday() }), []);
@@ -69,7 +71,32 @@ export function DashboardHeader({ firstName, done, total }: DashboardHeaderProps
             transition={{ type: "spring", stiffness: 120, damping: 20 }}
           />
         </div>
+        {calendar && <CalendarLine status={calendar} />}
       </section>
     </header>
+  );
+}
+
+function CalendarLine({ status }: { status: CalendarStatus }) {
+  const connected = status.connected;
+  const label = !connected
+    ? "Google Calendar не підключено"
+    : status.last_sync_at
+      ? `Google Calendar · оновлено о ${formatTime(status.last_sync_at)}`
+      : status.live
+        ? "Google Calendar на зв'язку"
+        : "Google Calendar підключено";
+
+  return (
+    <p className="relative mt-3 flex items-center gap-1.5 text-[11px] text-zinc-400">
+      <span
+        className={
+          connected
+            ? "size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.85)]"
+            : "size-1.5 rounded-full bg-zinc-600"
+        }
+      />
+      {label}
+    </p>
   );
 }

@@ -12,9 +12,10 @@ interface TaskListProps {
   tasks: Task[];
   filter: FilterId;
   onToggle: (id: number) => void;
+  onDelete: (id: number) => void;
 }
 
-export function TaskList({ tasks, filter, onToggle }: TaskListProps) {
+export function TaskList({ tasks, filter, onToggle, onDelete }: TaskListProps) {
   if (filter === "today") {
     const overdue = tasks.filter((task) => isOverdue(task));
     const due = tasks.filter((task) => !isOverdue(task));
@@ -22,12 +23,12 @@ export function TaskList({ tasks, filter, onToggle }: TaskListProps) {
       <div className="space-y-6">
         {overdue.length > 0 && (
           <Section title="Прострочені" accent>
-            <Cards tasks={overdue} onToggle={onToggle} />
+            <Cards tasks={overdue} onToggle={onToggle} onDelete={onDelete} />
           </Section>
         )}
         {due.length > 0 && (
           <Section title={overdue.length > 0 ? "Сьогодні" : undefined}>
-            <Cards tasks={due} onToggle={onToggle} />
+            <Cards tasks={due} onToggle={onToggle} onDelete={onDelete} />
           </Section>
         )}
       </div>
@@ -38,7 +39,7 @@ export function TaskList({ tasks, filter, onToggle }: TaskListProps) {
     <div className="space-y-6">
       {groupByDate(tasks).map((group) => (
         <Section key={group.key} title={group.label}>
-          <Cards tasks={group.tasks} onToggle={onToggle} />
+          <Cards tasks={group.tasks} onToggle={onToggle} onDelete={onDelete} />
         </Section>
       ))}
     </div>
@@ -72,7 +73,15 @@ function Section({
   );
 }
 
-function Cards({ tasks, onToggle }: { tasks: Task[]; onToggle: (id: number) => void }) {
+function Cards({
+  tasks,
+  onToggle,
+  onDelete,
+}: {
+  tasks: Task[];
+  onToggle: (id: number) => void;
+  onDelete: (id: number) => void;
+}) {
   return (
     <ul className="space-y-2.5">
       <AnimatePresence initial={false}>
@@ -85,7 +94,7 @@ function Cards({ tasks, onToggle }: { tasks: Task[]; onToggle: (id: number) => v
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
           >
-            <TaskCard task={task} onToggle={onToggle} />
+            <TaskCard task={task} onToggle={onToggle} onDelete={onDelete} />
           </motion.li>
         ))}
       </AnimatePresence>

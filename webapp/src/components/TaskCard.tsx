@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Calendar, Check } from "lucide-react";
+import { Bell, Calendar, CalendarClock, Check, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/cn";
-import { formatDay, formatTime } from "@/lib/date";
+import { formatSchedule, formatTime, sameMinute } from "@/lib/date";
 import { isOverdue } from "@/lib/filters";
 import { haptic } from "@/lib/telegram";
 import type { Task } from "@/lib/types";
@@ -12,11 +13,22 @@ import type { Task } from "@/lib/types";
 interface TaskCardProps {
   task: Task;
   onToggle: (id: number) => void;
+  onDelete: (id: number) => void;
 }
 
-export function TaskCard({ task, onToggle }: TaskCardProps) {
+export function TaskCard({ task, onToggle, onDelete }: TaskCardProps) {
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
+  const schedule = formatSchedule(task);
+  const anchor = task.start_time ?? task.deadline;
+  const showReminder = Boolean(task.remind_at && !task.is_completed && !sameMinute(task.remind_at, anchor));
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const timer = window.setTimeout(() => setConfirmingDelete(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [confirmingDelete]);
 
   return (
     <article
@@ -40,17 +52,41 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
           <div className="flex items-start gap-2">
             <h3
               className={cn(
-                "text-[15px] font-medium leading-5 tracking-tight text-zinc-100",
+                "min-w-0 flex-1 text-[15px] font-medium leading-5 tracking-tight text-zinc-100",
                 task.is_completed && "text-zinc-500 line-through decoration-zinc-600",
               )}
             >
               {task.title}
+              {highlight && (
+                <span
+                  aria-label="Високий пріоритет"
+                  className="ml-2 inline-block size-1.5 translate-y-[-1px] rounded-full bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.85)]"
+                />
+              )}
             </h3>
-            {highlight && (
-              <span
-                aria-label="Високий пріоритет"
-                className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.85)]"
-              />
+            {confirmingDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic.impact("medium");
+                  onDelete(task.id);
+                }}
+                className="shrink-0 rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] font-medium text-rose-300"
+              >
+                Видалити
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Видалити задачу"
+                onClick={() => {
+                  haptic.selection();
+                  setConfirmingDelete(true);
+                }}
+                className="flex size-7 shrink-0 items-center justify-center rounded-full text-zinc-600 transition hover:bg-rose-500/10 hover:text-rose-300"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
             )}
           </div>
 
@@ -64,16 +100,22 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
                 #{task.category}
               </span>
             )}
-            {task.deadline && (
+            {schedule && (
               <span className={cn("inline-flex items-center gap-1", overdue && "text-rose-400")}>
                 <Calendar className="size-3" />
-                {formatDay(task.deadline)} · {formatTime(task.deadline)}
+                {schedule}
               </span>
             )}
-            {task.remind_at && !task.is_completed && (
+            {showReminder && task.remind_at && (
               <span className="inline-flex items-center gap-1">
                 <Bell className="size-3" />
                 {formatTime(task.remind_at)}
+              </span>
+            )}
+            {task.google_event_id && (
+              <span className="inline-flex items-center gap-1 text-zinc-400">
+                <CalendarClock className="size-3" />
+                Google
               </span>
             )}
           </div>

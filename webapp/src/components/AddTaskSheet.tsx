@@ -72,13 +72,17 @@ export function AddTaskSheet({ open, onClose, onCreate }: AddTaskSheetProps) {
     setSubmitting(true);
     setError(null);
     try {
+      const start = date && time ? viennaToDate(date, time) : null;
+      const end = start ? new Date(start.getTime() + 60 * 60 * 1000) : null;
       await onCreate({
         title: trimmed,
         description: description.trim() || null,
         category,
         priority,
-        deadline: date ? viennaToDate(date, time || "23:59").toISOString() : null,
-        remind_at: date && time ? viennaToDate(date, time).toISOString() : null,
+        deadline: start ? start.toISOString() : date ? viennaToDate(date, "23:59").toISOString() : null,
+        remind_at: start ? start.toISOString() : null,
+        start_time: start ? start.toISOString() : null,
+        end_time: end ? end.toISOString() : null,
       });
       haptic.notify("success");
       onClose();
