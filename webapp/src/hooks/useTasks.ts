@@ -69,7 +69,9 @@ export function useTasks({ enabled }: { enabled: boolean }) {
         await tasksApi.remove(id);
       } catch (err) {
         setTasks(snapshot);
-        setError(err instanceof Error ? err.message : "Не вдалося видалити задачу");
+        const message = err instanceof Error ? err.message : "Не вдалося видалити задачу";
+        setError(message);
+        throw err instanceof Error ? err : new Error(message);
       }
     },
     [tasks],

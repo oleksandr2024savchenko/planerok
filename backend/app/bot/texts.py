@@ -11,16 +11,42 @@ PRIORITY_LABELS: dict[Priority, str] = {
 }
 
 
-def format_dt(value: datetime) -> str:
+def format_day(value: datetime) -> str:
     local = value.astimezone(TIMEZONE)
     today = datetime.now(TIMEZONE).date()
     if local.date() == today:
-        day = "сьогодні"
-    elif local.date() == today + timedelta(days=1):
-        day = "завтра"
-    else:
-        day = local.strftime("%d.%m.%Y")
-    return f"{day} о {local:%H:%M}"
+        return "сьогодні"
+    if local.date() == today + timedelta(days=1):
+        return "завтра"
+    return local.strftime("%d.%m.%Y")
+
+
+def format_dt(value: datetime) -> str:
+    local = value.astimezone(TIMEZONE)
+    return f"{format_day(local)} о {local:%H:%M}"
+
+
+def _same_minute(left: datetime, right: datetime) -> bool:
+    a = left.astimezone(TIMEZONE).replace(second=0, microsecond=0)
+    b = right.astimezone(TIMEZONE).replace(second=0, microsecond=0)
+    return a == b
+
+
+def schedule_line(task: Task) -> str | None:
+    start = task.start_time.astimezone(TIMEZONE) if task.start_time else None
+    end = task.end_time.astimezone(TIMEZONE) if task.end_time else None
+    if start is not None and end is not None:
+        if start.date() == end.date():
+            return f"📅 {format_dt(start)}–{end:%H:%M}"
+        return f"📅 {format_dt(start)} – {format_dt(end)}"
+    if start is not None:
+        return f"📅 {format_dt(start)}"
+    if task.deadline is None:
+        return None
+    local = task.deadline.astimezone(TIMEZONE)
+    if local.hour == 23 and local.minute == 59:
+        return f"📅 {format_day(local)}"
+    return f"📅 Дедлайн: {format_dt(task.deadline)}"
 
 
 def task_details(task: Task) -> str:
@@ -32,9 +58,10 @@ def task_details(task: Task) -> str:
         meta.append(f"#{escape(task.category)}")
     meta.append(PRIORITY_LABELS[task.priority])
     lines.append(" · ".join(meta))
-    if task.deadline:
-        lines.append(f"📅 Дедлайн: {format_dt(task.deadline)}")
-    if task.remind_at and not task.is_completed:
+    if line := schedule_line(task):
+        lines.append(line)
+    anchor = task.start_time or task.deadline
+    if task.remind_at and not task.is_completed and (anchor is None or not _same_minute(task.remind_at, anchor)):
         lines.append(f"🔔 Нагадування: {format_dt(task.remind_at)}")
     return "\n".join(lines)
 

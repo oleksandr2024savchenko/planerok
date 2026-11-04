@@ -15,20 +15,34 @@ export const FILTERS: FilterOption[] = [
   ...CATEGORIES.map((category) => ({ id: `tag:${category}` as const, label: `#${category}` })),
 ];
 
+function startsAt(task: Task): string | null {
+  return task.start_time ?? task.deadline;
+}
+
+function endsAt(task: Task): string | null {
+  return task.end_time ?? task.deadline ?? task.start_time;
+}
+
 export function isDueToday(task: Task, today = todayKey()): boolean {
-  return task.deadline !== null && dateKey(task.deadline) === today;
+  const start = startsAt(task);
+  const end = endsAt(task);
+  if (!start || !end) return false;
+  return dateKey(start) <= today && dateKey(end) >= today;
 }
 
 export function isOverdue(task: Task, today = todayKey()): boolean {
-  return !task.is_completed && task.deadline !== null && dateKey(task.deadline) < today;
+  const end = endsAt(task);
+  return !task.is_completed && end !== null && dateKey(end) < today;
 }
 
 export function matchesFilter(task: Task, filter: FilterId, today = todayKey()): boolean {
   switch (filter) {
     case "today":
       return isDueToday(task, today) || isOverdue(task, today);
-    case "scheduled":
-      return task.deadline !== null && dateKey(task.deadline) > today;
+    case "scheduled": {
+      const start = startsAt(task);
+      return start !== null && dateKey(start) > today;
+    }
     case "all":
       return true;
     default:
@@ -41,10 +55,10 @@ const PRIORITY_WEIGHT: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
 export function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
     if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
-    if (a.deadline && b.deadline && a.deadline !== b.deadline) {
-      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-    }
-    if (a.deadline !== b.deadline) return a.deadline ? -1 : 1;
+    const aWhen = startsAt(a);
+    const bWhen = startsAt(b);
+    if (aWhen && bWhen && aWhen !== bWhen) return new Date(aWhen).getTime() - new Date(bWhen).getTime();
+    if (aWhen !== bWhen) return aWhen ? -1 : 1;
     return PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority];
   });
 }
@@ -71,7 +85,8 @@ export interface TaskGroup {
 export function groupByDate(tasks: Task[]): TaskGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
-    const key = task.deadline ? dateKey(task.deadline) : "none";
+    const moment = startsAt(task);
+    const key = moment ? dateKey(moment) : "none";
     const list = buckets.get(key);
     if (list) list.push(task);
     else buckets.set(key, [task]);

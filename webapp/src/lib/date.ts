@@ -79,6 +79,37 @@ export function formatTime(iso: string): string {
   return timeFormat.format(new Date(iso));
 }
 
+export function sameMinute(left: string | null, right: string | null): boolean {
+  if (!left || !right) return false;
+  const a = new Date(left).getTime();
+  const b = new Date(right).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  return Math.floor(a / 60000) === Math.floor(b / 60000);
+}
+
+/** 23:59 is the date-only sentinel used by the API. */
+export function isEndOfDay(iso: string): boolean {
+  const parts = Object.fromEntries(partsFormat.formatToParts(new Date(iso)).map((part) => [part.type, part.value]));
+  return Number(parts.hour) === 23 && Number(parts.minute) === 59;
+}
+
+export function formatSchedule(task: {
+  start_time: string | null;
+  end_time: string | null;
+  deadline: string | null;
+}): string | null {
+  if (task.start_time) {
+    const day = formatDay(task.start_time);
+    const start = formatTime(task.start_time);
+    if (!task.end_time) return `${day} · ${start}`;
+    if (dateKey(task.start_time) === dateKey(task.end_time)) return `${day} · ${start}–${formatTime(task.end_time)}`;
+    return `${day} · ${start} – ${formatDay(task.end_time)} · ${formatTime(task.end_time)}`;
+  }
+  if (!task.deadline) return null;
+  if (isEndOfDay(task.deadline)) return formatDay(task.deadline);
+  return `${formatDay(task.deadline)} · ${formatTime(task.deadline)}`;
+}
+
 export function formatDayKey(key: string): string {
   const today = todayKey();
   if (key === today) return "Сьогодні";

@@ -1,5 +1,5 @@
 import { getInitData } from "./telegram";
-import type { Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
+import type { CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false" || !API_URL;
@@ -48,4 +48,8 @@ export const tasksApi = {
   remove(id: number) {
     return request<void>(`/tasks/${id}`, { method: "DELETE" });
   },
+};
+
+export const calendarApi = {
+  status: () => request<CalendarStatus>("/calendar/status"),
 };

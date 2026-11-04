@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 
+import { useCalendarStatus } from "@/hooks/useCalendarStatus";
 import { useTasks } from "@/hooks/useTasks";
 import { USE_MOCKS } from "@/lib/api";
+import { haptic } from "@/lib/telegram";
 import { countByFilter, matchesFilter, sortTasks, todayProgress, type FilterId } from "@/lib/filters";
 
 import { AddTaskSheet } from "./AddTaskSheet";
@@ -16,9 +18,10 @@ import { useTelegram } from "./TelegramProvider";
 
 export function HomePage() {
   const { firstName, isReady } = useTelegram();
-  const { tasks, isLoading, error, reload, createTask, toggleTask } = useTasks({
+  const { tasks, isLoading, error, reload, createTask, toggleTask, deleteTask } = useTasks({
     enabled: isReady || USE_MOCKS,
   });
+  const calendar = useCalendarStatus(isReady);
   const [filter, setFilter] = useState<FilterId>("today");
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -30,9 +33,18 @@ export function HomePage() {
   const progress = useMemo(() => todayProgress(tasks), [tasks]);
   const showList = isReady && !isLoading;
 
+  async function handleDelete(id: number) {
+    try {
+      await deleteTask(id);
+      haptic.notify("success");
+    } catch {
+      haptic.notify("error");
+    }
+  }
+
   return (
     <main className="relative mx-auto min-h-dvh max-w-lg px-5 pb-28 pt-6">
-      <DashboardHeader firstName={firstName} done={progress.done} total={progress.total} />
+      <DashboardHeader firstName={firstName} done={progress.done} total={progress.total} calendar={calendar} />
 
       <div className="mt-5">
         <FilterPills value={filter} counts={counts} onChange={setFilter} />
@@ -55,7 +67,7 @@ export function HomePage() {
         ) : visible.length === 0 ? (
           <EmptyState filter={filter} onAdd={() => setSheetOpen(true)} />
         ) : (
-          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} />
+          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} onDelete={(id) => void handleDelete(id)} />
         )}
       </div>
 
