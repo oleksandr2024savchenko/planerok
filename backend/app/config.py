@@ -1,13 +1,15 @@
 from functools import lru_cache
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 TIMEZONE = ZoneInfo("Europe/Vienna")
+_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     bot_token: str
     webapp_url: str = "https://example.com"
@@ -18,7 +20,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    # gemini-2.5-flash is rejected for new AI Studio keys (AQ.*).
+    gemini_model: str = "gemini-3.6-flash"
 
     # Google Calendar. Either a service-account JSON file, or an OAuth client + refresh token.
     google_client_id: str | None = None
