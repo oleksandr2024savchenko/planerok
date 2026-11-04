@@ -43,10 +43,6 @@ def _configure_google_job(settings: Settings) -> None:
     job_id = "google-calendar-sync"
     enabled = bool(settings.google_service_account_file or (settings.google_client_id and settings.google_client_secret))
     if not enabled:
-        try:
-            scheduler.remove_job(job_id)
-        except JobLookupError:
-            pass
         return
     scheduler.add_job(
         "app.services.google_calendar:refresh_google_watch",

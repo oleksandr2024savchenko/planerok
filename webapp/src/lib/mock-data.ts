@@ -5,6 +5,12 @@ function at(dayOffset: number, time: string): string {
   return viennaToDate(addDays(todayKey(), dayOffset), time).toISOString();
 }
 
+function block(dayOffset: number, time: string, hours = 1) {
+  const start = at(dayOffset, time);
+  const end = new Date(new Date(start).getTime() + hours * 3_600_000).toISOString();
+  return { start_time: start, end_time: end, deadline: end };
+}
+
 /** Built relative to "now", so the demo always has something for today. */
 export function createMockTasks(): Task[] {
   const created = new Date().toISOString();
@@ -15,8 +21,10 @@ export function createMockTasks(): Task[] {
       description: "Слайди з метриками Q4 та roadmap",
       category: "робота",
       priority: "high",
-      deadline: at(0, "15:00"),
+      ...block(0, "15:00"),
       remind_at: at(0, "14:30"),
+      google_event_id: "gcal-demo-1",
+      sync_token: "demo-sync",
       is_completed: false,
       created_at: created,
     },
@@ -26,8 +34,10 @@ export function createMockTasks(): Task[] {
       description: null,
       category: "тренування",
       priority: "medium",
-      deadline: at(0, "07:30"),
+      ...block(0, "07:30"),
       remind_at: null,
+      google_event_id: null,
+      sync_token: null,
       is_completed: true,
       created_at: created,
     },
@@ -37,8 +47,10 @@ export function createMockTasks(): Task[] {
       description: "Розділ 4: conditional types",
       category: "навчання",
       priority: "medium",
-      deadline: at(0, "20:00"),
+      ...block(0, "20:00"),
       remind_at: at(0, "19:45"),
+      google_event_id: "gcal-demo-3",
+      sync_token: "demo-sync",
       is_completed: false,
       created_at: created,
     },
@@ -48,8 +60,10 @@ export function createMockTasks(): Task[] {
       description: null,
       category: "робота",
       priority: "low",
-      deadline: at(0, "12:00"),
+      ...block(0, "12:00"),
       remind_at: null,
+      google_event_id: null,
+      sync_token: null,
       is_completed: true,
       created_at: created,
     },
@@ -59,8 +73,10 @@ export function createMockTasks(): Task[] {
       description: null,
       category: "тренування",
       priority: "medium",
-      deadline: at(1, "18:30"),
+      ...block(1, "18:30"),
       remind_at: at(1, "18:00"),
+      google_event_id: "gcal-demo-5",
+      sync_token: "demo-sync",
       is_completed: false,
       created_at: created,
     },
@@ -70,8 +86,10 @@ export function createMockTasks(): Task[] {
       description: "Не забути додати таблицю витрат",
       category: "робота",
       priority: "high",
-      deadline: at(3, "10:00"),
+      ...block(3, "10:00"),
       remind_at: at(3, "09:00"),
+      google_event_id: "gcal-demo-6",
+      sync_token: "demo-sync",
       is_completed: false,
       created_at: created,
     },
@@ -81,8 +99,10 @@ export function createMockTasks(): Task[] {
       description: null,
       category: "навчання",
       priority: "low",
-      deadline: at(5, "21:00"),
+      ...block(5, "21:00"),
       remind_at: null,
+      google_event_id: null,
+      sync_token: null,
       is_completed: false,
       created_at: created,
     },
@@ -98,8 +118,12 @@ export function buildMockTask(data: TaskCreate): Task {
     description: data.description ?? null,
     category: data.category ?? null,
     priority: data.priority ?? "medium",
-    deadline: data.deadline ?? null,
+    deadline: data.deadline ?? data.end_time ?? null,
     remind_at: data.remind_at ?? null,
+    start_time: data.start_time ?? null,
+    end_time: data.end_time ?? null,
+    google_event_id: null,
+    sync_token: null,
     is_completed: false,
     created_at: new Date().toISOString(),
   };

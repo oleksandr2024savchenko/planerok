@@ -12,15 +12,16 @@ export function useTasks({ enabled }: { enabled: boolean }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const reload = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setIsLoading(true);
+    if (!options?.silent) setError(null);
     try {
       setTasks(USE_MOCKS ? createMockTasks() : await tasksApi.list());
+      if (options?.silent) setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не вдалося завантажити задачі");
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) setIsLoading(false);
     }
   }, []);
 

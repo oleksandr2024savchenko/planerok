@@ -15,20 +15,28 @@ export const FILTERS: FilterOption[] = [
   ...CATEGORIES.map((category) => ({ id: `tag:${category}` as const, label: `#${category}` })),
 ];
 
+function scheduleStamp(task: Task): string | null {
+  return task.start_time ?? task.deadline;
+}
+
 export function isDueToday(task: Task, today = todayKey()): boolean {
-  return task.deadline !== null && dateKey(task.deadline) === today;
+  const stamp = scheduleStamp(task);
+  return stamp !== null && dateKey(stamp) === today;
 }
 
 export function isOverdue(task: Task, today = todayKey()): boolean {
-  return !task.is_completed && task.deadline !== null && dateKey(task.deadline) < today;
+  const stamp = scheduleStamp(task);
+  return !task.is_completed && stamp !== null && dateKey(stamp) < today;
 }
 
 export function matchesFilter(task: Task, filter: FilterId, today = todayKey()): boolean {
   switch (filter) {
     case "today":
       return isDueToday(task, today) || isOverdue(task, today);
-    case "scheduled":
-      return task.deadline !== null && dateKey(task.deadline) > today;
+    case "scheduled": {
+      const stamp = scheduleStamp(task);
+      return stamp !== null && dateKey(stamp) > today;
+    }
     case "all":
       return true;
     default:

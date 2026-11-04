@@ -15,13 +15,19 @@ const PRIORITIES: { id: Priority; label: string }[] = [
   { id: "high", label: "Високий" },
 ];
 
+export interface TaskSlot {
+  date: string;
+  time: string;
+}
+
 interface AddTaskSheetProps {
   open: boolean;
+  slot?: TaskSlot | null;
   onClose: () => void;
   onCreate: (data: TaskCreate) => Promise<unknown>;
 }
 
-export function AddTaskSheet({ open, onClose, onCreate }: AddTaskSheetProps) {
+export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSheetProps) {
   const titleId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
@@ -39,12 +45,12 @@ export function AddTaskSheet({ open, onClose, onCreate }: AddTaskSheetProps) {
     setDescription("");
     setCategory(null);
     setPriority("medium");
-    setDate(todayKey());
-    setTime("");
+    setDate(slot?.date ?? todayKey());
+    setTime(slot?.time ?? "");
     setError(null);
     const frame = requestAnimationFrame(() => titleRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [open]);
+  }, [open, slot?.date, slot?.time]);
 
   useEffect(() => {
     if (!open) return;
@@ -72,13 +78,17 @@ export function AddTaskSheet({ open, onClose, onCreate }: AddTaskSheetProps) {
     setSubmitting(true);
     setError(null);
     try {
+      const start = date && time ? viennaToDate(date, time).toISOString() : null;
+      const end = start ? new Date(new Date(start).getTime() + 3_600_000).toISOString() : null;
       await onCreate({
         title: trimmed,
         description: description.trim() || null,
         category,
         priority,
-        deadline: date ? viennaToDate(date, time || "23:59").toISOString() : null,
-        remind_at: date && time ? viennaToDate(date, time).toISOString() : null,
+        deadline: end ?? (date ? viennaToDate(date, "23:59").toISOString() : null),
+        remind_at: start,
+        start_time: start,
+        end_time: end,
       });
       haptic.notify("success");
       onClose();
@@ -117,9 +127,11 @@ export function AddTaskSheet({ open, onClose, onCreate }: AddTaskSheetProps) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 id={titleId} className="text-lg font-semibold tracking-tight text-zinc-100">
-                    Нова задача
+                    {slot ? "Нова подія" : "Нова задача"}
                   </h2>
-                  <p className="mt-0.5 text-sm text-zinc-500">Дата, нагадування та пріоритет — за бажанням</p>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    {slot ? `Слот ${slot.time} · блок на 1 годину` : "Дата, нагадування та пріоритет — за бажанням"}
+                  </p>
                 </div>
                 <button
                   type="button"

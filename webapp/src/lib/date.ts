@@ -96,8 +96,28 @@ export function formatLongToday(): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+export function viennaClock(value: Date = new Date()): { hour: number; minute: number } {
+  const parts = Object.fromEntries(partsFormat.formatToParts(value).map((part) => [part.type, part.value]));
+  return { hour: Number(parts.hour ?? 0), minute: Number(parts.minute ?? 0) };
+}
+
 export function viennaHour(): number {
-  return Number(partsFormat.formatToParts(new Date()).find((p) => p.type === "hour")?.value ?? 12);
+  return viennaClock().hour;
+}
+
+/** Monday = 0. Calendar dates are timezone-free, so UTC weekday matches the key. */
+export function weekdayIndex(key: string): number {
+  const [year, month, day] = key.split("-").map(Number);
+  const jsDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return (jsDay + 6) % 7;
+}
+
+export function startOfWeek(key: string): string {
+  return addDays(key, -weekdayIndex(key));
+}
+
+export function addHoursIso(iso: string, hours: number): string {
+  return new Date(new Date(iso).getTime() + hours * 3_600_000).toISOString();
 }
 
 export function greeting(): string {

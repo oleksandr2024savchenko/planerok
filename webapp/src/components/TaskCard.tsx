@@ -17,6 +17,7 @@ interface TaskCardProps {
 export function TaskCard({ task, onToggle }: TaskCardProps) {
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
+  const when = task.start_time ?? task.deadline;
 
   return (
     <article
@@ -64,10 +65,11 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
                 #{task.category}
               </span>
             )}
-            {task.deadline && (
+            {when && (
               <span className={cn("inline-flex items-center gap-1", overdue && "text-rose-400")}>
                 <Calendar className="size-3" />
-                {formatDay(task.deadline)} · {formatTime(task.deadline)}
+                {formatDay(when)} · {formatTime(when)}
+                {task.start_time && task.end_time ? `–${formatTime(task.end_time)}` : ""}
               </span>
             )}
             {task.remind_at && !task.is_completed && (
