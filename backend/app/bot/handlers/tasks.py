@@ -165,25 +165,49 @@ async def on_voice_task(message: Message, session: AsyncSession) -> None:
     if message.from_user is None or message.voice is None:
         return
 
-    await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    status = await message.reply("🎙 Розпізнаю голосове...")
-
-    buffer = io.BytesIO()
-    await message.bot.download(message.voice, destination=buffer)
-    audio_bytes = buffer.getvalue()
-
+    status: Message | None = None
     try:
-        extraction = await _extract(audio_bytes=audio_bytes)
-    except TaskExtractionError as exc:
-        await status.edit_text(f"🎙 {exc}")
-        return
+        await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+        status = await message.reply("🎙 Розпізнаю голосове...")
 
-    if not extraction.tasks:
-        await status.edit_text("🤔 Не почув жодного завдання. Спробуй ще раз, трохи конкретніше.")
-        return
+        buffer = io.BytesIO()
+        await message.bot.download(message.voice, destination=buffer)
+        audio_bytes = buffer.getvalue()
+        logger.info(
+            "Voice message from %s: %s bytes, duration=%ss",
+            message.from_user.id,
+            len(audio_bytes),
+            message.voice.duration,
+        )
+        if not audio_bytes:
+            logger.error("Telegram returned an empty voice file for message %s", message.message_id)
+            await status.edit_text("🎙 Не вдалося завантажити голосове. Надішли його ще раз.")
+            return
 
-    created = await _persist_tasks(session, message.from_user.id, extraction)
-    await _reply_with_tasks(message, created, status=status)
+        try:
+            extraction = await _extract(audio_bytes=audio_bytes)
+        except TaskExtractionError as exc:
+            logger.exception("Voice recognition failed for user %s", message.from_user.id)
+            await status.edit_text(f"🎙 {exc}")
+            return
+
+        if not extraction.tasks:
+            logger.info("Voice from %s contained no tasks", message.from_user.id)
+            await status.edit_text("🤔 Не почув жодного завдання. Спробуй ще раз, трохи конкретніше.")
+            return
+
+        created = await _persist_tasks(session, message.from_user.id, extraction)
+        await _reply_with_tasks(message, created, status=status)
+    except Exception:
+        logger.exception(
+            "Voice handler crashed for user %s message %s",
+            message.from_user.id,
+            message.message_id,
+        )
+        if status is not None:
+            await status.edit_text("🎙 Не вдалося розпізнати повідомлення")
+        else:
+            await message.reply("🎙 Не вдалося розпізнати повідомлення")
 
 
 @router.message(F.text & ~F.text.startswith("/"))

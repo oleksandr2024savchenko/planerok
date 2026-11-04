@@ -133,12 +133,14 @@ async def delete_task(session: AsyncSession, task: Task, *, push_google: bool = 
     if push_google and event_id:
         from app.services.google_calendar import delete_google_event
 
-        await delete_google_event(event_id)
+        try:
+            await delete_google_event(event_id)
+        except Exception:
+            logger.exception("Google Calendar delete failed for event %s; local task is already gone", event_id)
 
 
 async def _mirror_google(session: AsyncSession, task: Task) -> None:
     from app.services.google_calendar import (
-        GoogleCalendarError,
         build_event_body,
         create_google_event,
         delete_google_event,
@@ -163,8 +165,8 @@ async def _mirror_google(session: AsyncSession, task: Task) -> None:
         else:
             task.google_event_id = await create_google_event(task)
         await session.commit()
-    except GoogleCalendarError:
-        logger.warning("Google Calendar mirror failed for task %s", task.id, exc_info=True)
+    except Exception:
+        logger.exception("Google Calendar mirror failed for task %s; the task stays saved", task.id)
 
 
 async def complete_task(session: AsyncSession, task: Task) -> Task:
