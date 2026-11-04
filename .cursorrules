@@ -1,0 +1,23 @@
+# Project Rules & Tech Stack
+
+## Architecture
+- Monorepo structure: `/backend` (Python, FastAPI, aiogram 3) and `/webapp` (Next.js App Router, Telegram Mini App).
+- Timezone: Strictly use `Europe/Vienna` (`zoneinfo.ZoneInfo("Europe/Vienna")`) for all datetime operations and reminders.
+
+## Backend Rules (`/backend`)
+- Python 3.12+
+- Telegram Bot: STRICTLY use `aiogram 3.x` syntax (Router, F filters, FSMContext, CallbackData factory). NEVER use `aiogram 2.x` (`Dispatcher.register_message_handler`, `executor`).
+- API: `FastAPI` running concurrently with aiogram or mounted via webhook/lifespan.
+- Database: `PostgreSQL` + `SQLAlchemy 2.0` (strictly async: `AsyncSession`, `select()`, `Mapped`, `mapped_column`) + `Alembic`.
+- Validation: `Pydantic v2` (`model_validate`, `ConfigDict`).
+- Scheduler: `APScheduler` (`AsyncIOScheduler`) with `SQLAlchemyJobStore` for persistent task reminders.
+
+## Frontend & Design Rules (`/webapp`)
+- Framework: `Next.js 15` (App Router), `React 19`, `TypeScript`, `Tailwind CSS`, `Lucide React`, `Framer Motion`.
+- Telegram Integration: `@twa-dev/sdk` (use `WebApp.HapticFeedback`, `WebApp.expand()`, `WebApp.ready()`).
+- Aesthetic & UI Style: "Modern Dark Neon Purple" (Linear / Raycast / Cyberpunk minimalism vibe):
+  - Background: Deep obsidian/void (`#09090B` or `bg-zinc-950`), secondary surfaces `bg-zinc-900/60` with `backdrop-blur-xl`.
+  - Primary Accent: Electric Neon Purple (`#A855F7` / `purple-500` and `#8B5CF6` / `violet-500`).
+  - Glow Effects: Subtle ambient glows (`shadow-[0_0_20px_rgba(168,85,247,0.25)]`), glowing 1px borders (`border-purple-500/20` hover `border-purple-500/50`).
+  - Typography: Clean sans-serif (`Geist` or `Inter`), high-contrast white (`text-zinc-100`) for headings, muted zinc (`text-zinc-400`) for metadata.
+  - No tacky 90s neon: Keep glows subtle, gradients smooth (`bg-gradient-to-br from-purple-600/20 via-violet-600/5 to-transparent`), and spacing generous.
