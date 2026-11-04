@@ -30,14 +30,18 @@ def test_event_body_uses_vienna_timezone() -> None:
     assert body["description"] == "Спина"
 
 
-def test_date_only_deadline_is_not_a_calendar_block() -> None:
+def test_date_only_deadline_becomes_all_day_event() -> None:
     task = Task(
         id=1,
         user_id=1,
         title="Оплатити рахунок",
         deadline=datetime(2026, 11, 4, 23, 59, tzinfo=TIMEZONE),
     )
-    assert build_event_body(task) is None
+    body = build_event_body(task)
+    assert body is not None
+    assert body["start"] == {"date": "2026-11-04", "timeZone": "Europe/Vienna"}
+    assert body["end"] == {"date": "2026-11-05", "timeZone": "Europe/Vienna"}
+    assert body["summary"] == "Оплатити рахунок"
 
 
 def test_apply_schedule_fills_one_hour_and_skips_end_of_day() -> None:

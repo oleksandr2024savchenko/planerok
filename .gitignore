@@ -4,10 +4,11 @@
 .idea/
 .vscode/
 
-# Env
+# Env and local credentials
 .env
 .env.*
 !.env.example
+service_account.json
 
 # Python
 __pycache__/

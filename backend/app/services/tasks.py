@@ -139,6 +139,7 @@ async def delete_task(session: AsyncSession, task: Task, *, push_google: bool = 
 async def _mirror_google(session: AsyncSession, task: Task) -> None:
     from app.services.google_calendar import (
         GoogleCalendarError,
+        build_event_body,
         create_google_event,
         delete_google_event,
         is_configured,
@@ -147,14 +148,15 @@ async def _mirror_google(session: AsyncSession, task: Task) -> None:
 
     if not is_configured():
         return
-    has_block = task.start_time is not None or task.end_time is not None
+
+    has_event = build_event_body(task) is not None
     try:
-        if task.google_event_id and not has_block:
+        if task.google_event_id and not has_event:
             await delete_google_event(task.google_event_id)
             task.google_event_id = None
             await session.commit()
             return
-        if not has_block:
+        if not has_event:
             return
         if task.google_event_id:
             await update_google_event(task)

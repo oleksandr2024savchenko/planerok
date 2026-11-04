@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from google.auth.exceptions import GoogleAuthError
+from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 from google_auth_oauthlib.flow import Flow
@@ -138,22 +139,61 @@ def _google_range(start: dict, end: dict) -> tuple[datetime | None, datetime | N
     return None, None
 
 
-def build_event_body(task: Task) -> dict | None:
-    start = _to_vienna(task.start_time) or _timed_deadline(task)
-    if start is None:
-        return None
-    end = _to_vienna(task.end_time) or start + timedelta(hours=1)
-    if end <= start:
-        end = start + timedelta(hours=1)
-    body: dict = {
-        "summary": task.title,
-        "start": {"dateTime": _rfc3339(start), "timeZone": CALENDAR_TZ},
-        "end": {"dateTime": _rfc3339(end), "timeZone": CALENDAR_TZ},
-        "extendedProperties": {"private": {"planerTaskId": str(task.id), "source": "planer"}},
-    }
-    if task.description:
-        body["description"] = task.description
+def _event_body(
+    *,
+    summary: str,
+    start: datetime,
+    end: datetime | None,
+    description: str | None,
+    all_day: bool,
+    private: dict[str, str] | None,
+) -> dict:
+    if all_day:
+        day = start.astimezone(TIMEZONE).date()
+        end_day = end.astimezone(TIMEZONE).date() if end is not None else day + timedelta(days=1)
+        if end_day <= day:
+            end_day = day + timedelta(days=1)
+        start_field: dict[str, str] = {"date": day.isoformat(), "timeZone": CALENDAR_TZ}
+        end_field: dict[str, str] = {"date": end_day.isoformat(), "timeZone": CALENDAR_TZ}
+    else:
+        finish = end or start + timedelta(hours=1)
+        if finish <= start:
+            finish = start + timedelta(hours=1)
+        start_field = {"dateTime": _rfc3339(start), "timeZone": CALENDAR_TZ}
+        end_field = {"dateTime": _rfc3339(finish), "timeZone": CALENDAR_TZ}
+    body: dict = {"summary": summary, "start": start_field, "end": end_field}
+    if description:
+        body["description"] = description
+    if private:
+        body["extendedProperties"] = {"private": private}
     return body
+
+
+def build_event_body(task: Task) -> dict | None:
+    private = {"source": "planer"}
+    if task.id is not None:
+        private["planerTaskId"] = str(task.id)
+    timed = _to_vienna(task.start_time) or _timed_deadline(task)
+    if timed is not None:
+        return _event_body(
+            summary=task.title,
+            start=timed,
+            end=_to_vienna(task.end_time) or timed + timedelta(hours=1),
+            description=task.description,
+            all_day=False,
+            private=private,
+        )
+    deadline = _to_vienna(task.deadline)
+    if deadline is None:
+        return None
+    return _event_body(
+        summary=task.title,
+        start=deadline,
+        end=None,
+        description=task.description,
+        all_day=True,
+        private=private,
+    )
 
 
 def _timed_deadline(task: Task) -> datetime | None:
@@ -209,12 +249,25 @@ def exchange_code(code: str) -> str:
     return refresh
 
 
+def _service_account_credentials() -> ServiceAccountCredentials:
+    settings = get_settings()
+    raw = settings.GOOGLE_SERVICE_ACCOUNT_FILE
+    if not raw:
+        raise GoogleCalendarError("GOOGLE_SERVICE_ACCOUNT_FILE is not set")
+    path = Path(raw)
+    if not path.is_file():
+        raise GoogleCalendarError("Service account file is missing")
+    creds = service_account.Credentials.from_service_account_file(
+        str(path),
+        scopes=["https://www.googleapis.com/auth/calendar"],
+    )
+    email = settings.google_impersonate_email
+    return creds.with_subject(email) if email else creds
+
+
 def _credentials(refresh_token: str | None) -> Credentials | ServiceAccountCredentials:
-    path = _service_account_path()
-    if path is not None:
-        creds = ServiceAccountCredentials.from_service_account_file(path, scopes=SCOPES)
-        email = get_settings().google_impersonate_email
-        return creds.with_subject(email) if email else creds
+    if _service_account_path() is not None:
+        return _service_account_credentials()
     settings = get_settings()
     token = refresh_token or settings.google_refresh_token
     if not (settings.google_client_id and settings.google_client_secret and token):
@@ -264,6 +317,42 @@ def _fetch_changes(creds: Credentials | ServiceAccountCredentials, calendar_id: 
         if not token:
             return items, page.get("nextSyncToken")
         kwargs["pageToken"] = token
+
+
+_resolved_calendar_id: str | None = None
+
+
+def resolve_calendar_id(creds: Credentials | ServiceAccountCredentials) -> str:
+    """Use GOOGLE_CALENDAR_ID, or the calendar shared with the service account."""
+    global _resolved_calendar_id
+    configured = (get_settings().GOOGLE_CALENDAR_ID or "primary").strip() or "primary"
+    if configured != "primary":
+        return configured
+    if _resolved_calendar_id:
+        return _resolved_calendar_id
+    sa_email = getattr(creds, "service_account_email", None)
+    if not sa_email:
+        return "primary"
+    items = _service(creds).calendarList().list(maxResults=250).execute().get("items", [])
+    shared: list[dict] = []
+    for item in items:
+        calendar_id = item.get("id") or ""
+        if item.get("accessRole") not in ("owner", "writer"):
+            continue
+        if calendar_id == sa_email or item.get("primary"):
+            continue
+        summary = (item.get("summary") or "").lower()
+        if "holiday" in summary or "holidays" in summary or "свят" in summary:
+            continue
+        shared.append(item)
+    if not shared:
+        logger.warning("Service account %s sees no shared calendar; using its primary calendar", sa_email)
+        return "primary"
+    shared.sort(key=lambda item: not item.get("selected"))
+    chosen = shared[0]["id"]
+    _resolved_calendar_id = chosen
+    logger.info("Google Calendar target for %s is %s", sa_email, chosen)
+    return chosen
 
 
 def _insert_event(creds, calendar_id: str, body: dict) -> str:
@@ -317,17 +406,117 @@ async def _connection() -> tuple[str | None, str]:
         return state.refresh_token, state.calendar_id or settings.google_calendar_id
 
 
+class GoogleEventMissing(GoogleCalendarError):
+    pass
+
+
+def _spec_from_body(body: dict) -> dict:
+    start_field = body["start"]
+    end_field = body["end"]
+    all_day = "date" in start_field
+    if all_day:
+        start = datetime.fromisoformat(start_field["date"]).replace(tzinfo=TIMEZONE)
+        end = datetime.fromisoformat(end_field["date"]).replace(tzinfo=TIMEZONE)
+    else:
+        start = _to_vienna(datetime.fromisoformat(start_field["dateTime"]))
+        end = _to_vienna(datetime.fromisoformat(end_field["dateTime"]))
+    private = (body.get("extendedProperties") or {}).get("private")
+    return {
+        "summary": body["summary"],
+        "start": start,
+        "end": end,
+        "description": body.get("description"),
+        "all_day": all_day,
+        "private": private,
+    }
+
+
+async def _credentials_and_calendar() -> tuple[Credentials | ServiceAccountCredentials, str]:
+    refresh_token, _stored = await _connection()
+    creds = _credentials(refresh_token)
+    calendar_id = await asyncio.to_thread(resolve_calendar_id, creds)
+    return creds, calendar_id
+
+
+async def create_event(
+    summary: str,
+    start: datetime,
+    end: datetime | None = None,
+    *,
+    description: str | None = None,
+    all_day: bool = False,
+    private: dict[str, str] | None = None,
+) -> str:
+    """Create an event on GOOGLE_CALENDAR_ID in Europe/Vienna. Returns the event id."""
+    body = _event_body(
+        summary=summary,
+        start=start,
+        end=end,
+        description=description,
+        all_day=all_day,
+        private=private,
+    )
+    creds, calendar_id = await _credentials_and_calendar()
+    try:
+        event_id = await asyncio.to_thread(_insert_event, creds, calendar_id, body)
+    except (HttpError, GoogleAuthError) as exc:
+        logger.exception("Failed to create Google event")
+        raise GoogleCalendarError("Не вдалося створити подію в Google Calendar") from exc
+    logger.info("Created Google event %s on calendar %s", event_id, calendar_id)
+    return event_id
+
+
+async def update_event(
+    event_id: str,
+    summary: str,
+    start: datetime,
+    end: datetime | None = None,
+    *,
+    description: str | None = None,
+    all_day: bool = False,
+    private: dict[str, str] | None = None,
+) -> None:
+    body = _event_body(
+        summary=summary,
+        start=start,
+        end=end,
+        description=description,
+        all_day=all_day,
+        private=private,
+    )
+    creds, calendar_id = await _credentials_and_calendar()
+    try:
+        await asyncio.to_thread(_patch_event, creds, calendar_id, event_id, body)
+    except HttpError as exc:
+        if getattr(exc.resp, "status", None) == 404:
+            raise GoogleEventMissing(event_id) from exc
+        logger.exception("Failed to update Google event %s", event_id)
+        raise GoogleCalendarError("Не вдалося оновити подію в Google Calendar") from exc
+    except GoogleAuthError as exc:
+        logger.exception("Failed to update Google event %s", event_id)
+        raise GoogleCalendarError("Не вдалося оновити подію в Google Calendar") from exc
+
+
+async def delete_event(event_id: str) -> None:
+    try:
+        creds, calendar_id = await _credentials_and_calendar()
+    except GoogleCalendarError:
+        return
+    try:
+        await asyncio.to_thread(_remove_event, creds, calendar_id, event_id)
+    except (HttpError, GoogleAuthError):
+        logger.exception("Failed to delete Google event %s", event_id)
+
+
 async def create_google_event(task: Task) -> str | None:
     body = build_event_body(task)
     if body is None:
         return None
-    refresh_token, calendar_id = await _connection()
-    creds = _credentials(refresh_token)
     try:
-        return await asyncio.to_thread(_insert_event, creds, calendar_id, body)
-    except (HttpError, GoogleAuthError) as exc:
+        return await create_event(**_spec_from_body(body))
+    except GoogleCalendarError:
         logger.exception("Failed to create Google event for task %s", task.id)
-        raise GoogleCalendarError("Не вдалося створити подію в Google Calendar") from exc
+        raise
 
 
 async def update_google_event(task: Task) -> None:
@@ -335,31 +524,16 @@ async def update_google_event(task: Task) -> None:
         return
     body = build_event_body(task)
     if body is None:
-        await delete_google_event(task.google_event_id)
+        await delete_event(task.google_event_id)
         return
-    refresh_token, calendar_id = await _connection()
-    creds = _credentials(refresh_token)
     try:
-        await asyncio.to_thread(_patch_event, creds, calendar_id, task.google_event_id, body)
-    except HttpError as exc:
-        if getattr(exc.resp, "status", None) == 404:
-            new_id = await create_google_event(task)
-            task.google_event_id = new_id
-            return
-        logger.exception("Failed to update Google event %s", task.google_event_id)
-        raise GoogleCalendarError("Не вдалося оновити подію в Google Calendar") from exc
+        await update_event(task.google_event_id, **_spec_from_body(body))
+    except GoogleEventMissing:
+        task.google_event_id = await create_google_event(task)
 
 
 async def delete_google_event(google_event_id: str) -> None:
-    try:
-        refresh_token, calendar_id = await _connection()
-        creds = _credentials(refresh_token)
-    except GoogleCalendarError:
-        return
-    try:
-        await asyncio.to_thread(_remove_event, creds, calendar_id, google_event_id)
-    except (HttpError, GoogleAuthError):
-        logger.exception("Failed to delete Google event %s", google_event_id)
+    await delete_event(google_event_id)
 
 
 async def sync_from_google(sync_token: str | None = None) -> str | None:
@@ -368,9 +542,9 @@ async def sync_from_google(sync_token: str | None = None) -> str | None:
     async with session_factory() as session:
         state = await _state(session)
         token = sync_token if sync_token is not None else state.sync_token
-        calendar_id = get_settings().google_calendar_id or state.calendar_id
         try:
             creds = _credentials(state.refresh_token)
+            calendar_id = await asyncio.to_thread(resolve_calendar_id, creds)
             try:
                 items, next_token = await asyncio.to_thread(_fetch_changes, creds, calendar_id, token)
             except HttpError as exc:

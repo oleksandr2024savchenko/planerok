@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     init_data_ttl_seconds: int = 24 * 60 * 60
 
     @property
+    def GOOGLE_SERVICE_ACCOUNT_FILE(self) -> str | None:
+        return self.google_service_account_file
+
+    @property
+    def GOOGLE_CALENDAR_ID(self) -> str:
+        return self.google_calendar_id
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 

@@ -1,20 +1,18 @@
 services:
-  postgres:
+  db:
     image: postgres:16-alpine
     container_name: planer-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-planer}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planer}
-      POSTGRES_DB: ${POSTGRES_DB:-planer}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: planer
       TZ: Europe/Vienna
       PGTZ: Europe/Vienna
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planer} -d ${POSTGRES_DB:-planer}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d planer"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -24,8 +22,6 @@ services:
     container_name: planer-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,6 +29,32 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  backend:
+    build: ./backend
+    container_name: planer-backend
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./service_account.json:/app/service_account.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  webapp:
+    build:
+      context: ./webapp
+      args:
+        NEXT_PUBLIC_API_URL: https://planer.pp.ua
+        NEXT_PUBLIC_USE_MOCKS: "false"
+    container_name: planer-webapp
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
 
 volumes:
   postgres_data:
