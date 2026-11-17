@@ -1,8 +1,13 @@
 export type Theme = "purple" | "pink";
 
-/** Telegram user ids that get the pink theme, from NEXT_PUBLIC_PINK_USER_IDS="123,456". Everyone else is purple. */
+/**
+ * Telegram user ids that get the pink theme. Everyone else (including 969740172) sees purple.
+ * NEXT_PUBLIC_PINK_USER_IDS="123,456" replaces the default list at build time.
+ */
+const DEFAULT_PINK_USER_IDS = "729424163";
+
 const PINK_USER_IDS = new Set(
-  (process.env.NEXT_PUBLIC_PINK_USER_IDS ?? "")
+  (process.env.NEXT_PUBLIC_PINK_USER_IDS || DEFAULT_PINK_USER_IDS)
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean),
