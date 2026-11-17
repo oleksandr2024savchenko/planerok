@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
+import { useAppUpdates } from "@/hooks/useAppUpdates";
 import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS, usersApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -46,6 +47,7 @@ export function HomePage() {
   const [slot, setSlot] = useState<TaskSlot | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
+  useAppUpdates(sheetOpen || feedsOpen);
 
   const scoped = useMemo(() => tasks.filter((task) => matchesAudience(task, audience)), [tasks, audience]);
   const counts = useMemo(() => countByFilter(scoped), [scoped]);
