@@ -14,6 +14,7 @@ import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
 import { FilterPills } from "./FilterPills";
+import { FlowerDecor } from "./FlowerDecor";
 import { ReminderSheet } from "./ReminderSheet";
 import { SyncBadge } from "./SyncBadge";
 import { TaskList } from "./TaskList";
@@ -24,7 +25,7 @@ const MOCK_STATUS: CalendarStatus = { connected: true, live: true, last_sync_at:
 const OFFLINE_STATUS: CalendarStatus = { connected: false, live: false, last_sync_at: null };
 
 export function HomePage() {
-  const { firstName, isReady } = useTelegram();
+  const { firstName, isReady, theme } = useTelegram();
   const { tasks, isLoading, error, reload, createTask, updateTask, toggleTask } = useTasks({
     enabled: isReady || USE_MOCKS,
   });
@@ -56,60 +57,63 @@ export function HomePage() {
   }
 
   return (
-    <main className={cn("relative mx-auto min-h-dvh px-5 pb-28 pt-6", view === "calendar" ? "max-w-3xl" : "max-w-lg")}>
-      <DashboardHeader firstName={firstName} done={progress.done} total={progress.total} />
+    <>
+      {theme === "pink" && <FlowerDecor />}
+      <main className={cn("relative mx-auto min-h-dvh px-5 pb-28 pt-6", view === "calendar" ? "max-w-3xl" : "max-w-lg")}>
+        <DashboardHeader firstName={firstName} done={progress.done} total={progress.total} theme={theme} />
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <SyncBadge status={sync} />
-        <ViewModeSwitch value={view} onChange={setView} />
-      </div>
-
-      {view === "list" && (
-        <div className="mt-4">
-          <FilterPills value={filter} counts={counts} onChange={setFilter} />
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <SyncBadge status={sync} />
+          <ViewModeSwitch value={view} onChange={setView} />
         </div>
-      )}
 
-      {error && (
-        <button
-          type="button"
-          onClick={() => void reload()}
-          className="mt-4 w-full rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-left text-sm text-rose-300 transition hover:border-rose-500/40"
-        >
-          {error}
-          <span className="mt-0.5 block text-xs text-rose-400/80">Натисни, щоб спробувати ще раз</span>
-        </button>
-      )}
-
-      <div className="mt-5">
-        {!ready ? (
-          <TaskSkeleton />
-        ) : view === "calendar" ? (
-          <CalendarBoard
-            tasks={tasks}
-            onSlot={(date, time) => openSheet({ date, time })}
-            onTask={setReminderTask}
-          />
-        ) : visible.length === 0 ? (
-          <EmptyState filter={filter} onAdd={() => openSheet(null)} />
-        ) : (
-          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} onReminder={setReminderTask} />
+        {view === "list" && (
+          <div className="mt-4">
+            <FilterPills value={filter} counts={counts} onChange={setFilter} />
+          </div>
         )}
-      </div>
 
-      {USE_MOCKS && (
-        <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
-      )}
+        {error && (
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="mt-4 w-full rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-left text-sm text-rose-300 transition hover:border-rose-500/40"
+          >
+            {error}
+            <span className="mt-0.5 block text-xs text-rose-400/80">Натисни, щоб спробувати ще раз</span>
+          </button>
+        )}
 
-      <Fab hidden={sheetOpen || reminderTask !== null} onClick={() => openSheet(null)} />
-      <ReminderSheet task={reminderTask} onClose={closeReminder} onSave={updateTask} />
-      <AddTaskSheet
-        open={sheetOpen}
-        slot={slot}
-        onClose={() => setSheetOpen(false)}
-        onCreate={createTask}
-      />
-    </main>
+        <div className="mt-5">
+          {!ready ? (
+            <TaskSkeleton />
+          ) : view === "calendar" ? (
+            <CalendarBoard
+              tasks={tasks}
+              onSlot={(date, time) => openSheet({ date, time })}
+              onTask={setReminderTask}
+            />
+          ) : visible.length === 0 ? (
+            <EmptyState filter={filter} onAdd={() => openSheet(null)} />
+          ) : (
+            <TaskList tasks={visible} filter={filter} onToggle={toggleTask} onReminder={setReminderTask} />
+          )}
+        </div>
+
+        {USE_MOCKS && (
+          <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
+        )}
+
+        <Fab hidden={sheetOpen || reminderTask !== null} onClick={() => openSheet(null)} />
+        <ReminderSheet task={reminderTask} onClose={closeReminder} onSave={updateTask} />
+        <AddTaskSheet
+          open={sheetOpen}
+          slot={slot}
+          onClose={() => setSheetOpen(false)}
+          onCreate={createTask}
+        />
+      </main>
+    </>
   );
 }
 

@@ -13,8 +13,12 @@ const PINK_USER_IDS = new Set(
     .filter(Boolean),
 );
 
+/** Kept purple explicitly, even if it ever lands in the pink list by mistake. */
+const PURPLE_USER_IDS = new Set(["969740172"]);
+
 export function themeForUser(userId: number | null | undefined): Theme {
-  return userId != null && PINK_USER_IDS.has(String(userId)) ? "pink" : "purple";
+  if (userId == null || PURPLE_USER_IDS.has(String(userId))) return "purple";
+  return PINK_USER_IDS.has(String(userId)) ? "pink" : "purple";
 }
 
 /** `?theme=pink` / `?theme=purple` previews a theme without a Telegram account (demo, GitHub Pages). */

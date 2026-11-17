@@ -4,6 +4,9 @@ import { ListTodo } from "lucide-react";
 
 import type { FilterId } from "@/lib/filters";
 
+import { Flower } from "./Flower";
+import { useTelegram } from "./TelegramProvider";
+
 const COPY: Record<string, { title: string; hint: string }> = {
   today: { title: "На сьогодні все чисто", hint: "Додай задачу — або насолоджуйся вікном спокою." },
   scheduled: { title: "Немає запланованих задач", hint: "Майбутні дедлайни з’являться тут." },
@@ -16,6 +19,7 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ filter, onAdd }: EmptyStateProps) {
+  const { theme } = useTelegram();
   const copy = COPY[filter] ?? {
     title: "Немає задач у цій категорії",
     hint: "Зміни фільтр або додай нову задачу з потрібним тегом.",
@@ -24,7 +28,7 @@ export function EmptyState({ filter, onAdd }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center px-6 py-16 text-center">
       <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-purple-500/20 bg-purple-500/10 shadow-[0_0_24px_rgb(var(--glow)/0.18)]">
-        <ListTodo className="size-6 text-purple-300" />
+        {theme === "pink" ? <Flower className="size-9" /> : <ListTodo className="size-6 text-purple-300" />}
       </div>
       <h2 className="text-base font-medium text-zinc-100">{copy.title}</h2>
       <p className="mt-1 max-w-[240px] text-sm leading-relaxed text-zinc-500">{copy.hint}</p>

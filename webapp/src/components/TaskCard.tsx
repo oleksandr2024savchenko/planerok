@@ -10,6 +10,9 @@ import { shortOffset } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 import type { Task } from "@/lib/types";
 
+import { Flower } from "./Flower";
+import { useTelegram } from "./TelegramProvider";
+
 interface TaskCardProps {
   task: Task;
   onToggle: (id: number) => void;
@@ -117,6 +120,7 @@ function reminderLabel(task: Task): string {
 }
 
 function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
+  const pink = useTelegram().theme === "pink";
   return (
     <button
       type="button"
@@ -145,7 +149,11 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
               exit={{ scale: 0.4, opacity: 0 }}
               transition={{ type: "spring", stiffness: 520, damping: 24 }}
             >
-              <Check className="size-3.5 text-white" strokeWidth={3} />
+              {pink ? (
+                <Flower className="size-5" petal="#ffffff" petalEdge="#ffd1e8" center="#ff2e97" />
+              ) : (
+                <Check className="size-3.5 text-on-accent" strokeWidth={3} />
+              )}
             </motion.span>
           )}
         </AnimatePresence>

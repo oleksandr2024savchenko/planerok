@@ -73,7 +73,7 @@ function SheetBody({ task, onClose, onSave }: ReminderSheetProps & { task: Task 
         onClick={onClose}
       />
       <motion.div
-        className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 pb-safe shadow-[0_-20px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+        className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 pb-safe shadow-[0_-20px_80px_var(--sheet-shadow)] backdrop-blur-xl"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
@@ -125,7 +125,7 @@ function SheetBody({ task, onClose, onSave }: ReminderSheetProps & { task: Task 
                 type="button"
                 onClick={() => void save()}
                 disabled={saving}
-                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 py-3.5 text-sm font-semibold text-white shadow-[0_0_24px_rgb(var(--glow)/0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 py-3.5 text-sm font-semibold text-on-accent shadow-[0_0_24px_rgb(var(--glow)/0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {saving ? "Зберігаю…" : "Зберегти"}
               </button>

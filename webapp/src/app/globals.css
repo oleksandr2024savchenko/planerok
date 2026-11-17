@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  /* Text on neon buttons stays white in every theme (the pink theme remaps --color-white). */
+  --color-on-accent: #ffffff;
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -13,29 +18,59 @@
   --glow-alt: 192 38 211;
   --glow-hot: 232 121 249;
   --picker-hue: 225deg;
+  --picker-filter: invert(0.7) sepia(1) saturate(4) hue-rotate(var(--picker-hue));
+  --sheet-shadow: rgb(0 0 0 / 0.55);
 }
 
 /*
- * Pink theme. Components use the purple/violet/fuchsia utilities; here those palette
- * variables are remapped to Tailwind's pink/rose values, so no component needs a second set of classes.
+ * Pink theme: light, pastel and neon. Components keep their zinc/purple/violet/fuchsia/white classes;
+ * here those palette variables are remapped, so the dark scale turns light and the purple accents turn
+ * neon pink. Flowers live in FlowerDecor and a few theme-aware icons.
  */
 :root[data-theme="pink"] {
-  --glow: 236 72 153;
-  --glow-alt: 244 63 94;
-  --glow-hot: 251 113 133;
-  --picker-hue: 290deg;
+  color-scheme: light;
+  --void: #fff0f7;
+  --glow: 255 46 151;
+  --glow-alt: 255 92 184;
+  --glow-hot: 255 120 200;
+  --sheet-shadow: rgb(214 51 132 / 0.22);
+  --picker-filter: invert(32%) sepia(90%) saturate(3000%) hue-rotate(305deg);
 
-  --color-purple-100: oklch(94.8% 0.028 342.258);
-  --color-purple-200: oklch(89.9% 0.061 343.231);
-  --color-purple-300: oklch(82.3% 0.12 346.018);
-  --color-purple-400: oklch(71.8% 0.202 349.761);
-  --color-purple-500: oklch(65.6% 0.241 354.308);
-  --color-purple-600: oklch(59.2% 0.249 0.584);
-  --color-purple-900: oklch(40.8% 0.153 2.432);
-  --color-purple-950: oklch(28.4% 0.109 3.907);
-  --color-violet-600: oklch(59.2% 0.249 0.584);
-  --color-fuchsia-400: oklch(71.2% 0.194 13.428);
-  --color-fuchsia-500: oklch(71.2% 0.194 13.428);
+  /* Dark → light: page, glass surfaces, text from deep berry to soft rose. */
+  --color-zinc-950: #fff0f7;
+  --color-zinc-900: #ffffff;
+  --color-zinc-800: #ffe0ef;
+  --color-zinc-700: #fbc4de;
+  --color-zinc-600: #d98ab2;
+  --color-zinc-500: #b65a8f;
+  --color-zinc-400: #9c4579;
+  --color-zinc-300: #7f2d61;
+  --color-zinc-200: #6b2253;
+  --color-zinc-100: #4d1039;
+
+  /* Hairline borders and handles become pink; overlays a soft berry dim. */
+  --color-white: #ff5fae;
+  --color-black: #5a1641;
+
+  /* Neon pink accents; 100–300 are used as text on light chips, so they are the deep shades. */
+  --color-purple-100: #c8006c;
+  --color-purple-200: #d4127c;
+  --color-purple-300: #e22d8e;
+  --color-purple-400: #ff3d9e;
+  --color-purple-500: #ff2e97;
+  --color-purple-600: #ff1a8c;
+  --color-purple-900: #ffc4e1;
+  --color-purple-950: #ffd9ec;
+  --color-violet-600: #ff2e97;
+  --color-fuchsia-400: #ff7ccb;
+  --color-fuchsia-500: #ff8fd1;
+}
+
+:root[data-theme="pink"] body {
+  background-image:
+    radial-gradient(ellipse 80% 45% at 50% -6%, rgb(255 46 151 / 0.22), transparent 62%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgb(255 160 214 / 0.35), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 0% 60%, rgb(255 199 230 / 0.45), transparent 70%);
 }
 
 html,
@@ -60,7 +95,7 @@ body {
 /* Native date/time pickers: keep the icon visible on dark surfaces. */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7) sepia(1) saturate(4) hue-rotate(var(--picker-hue));
+  filter: var(--picker-filter);
   opacity: 0.8;
 }
 
@@ -73,4 +108,26 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 @utility pb-safe {
   padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+}
+
+/* Flower decor: slow drift and sway; still when the viewer asks for less motion. */
+@keyframes flower-drift {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-14px) rotate(calc(var(--r, 0deg) + 18deg)); }
+}
+
+@keyframes flower-pop {
+  0% { transform: scale(0.4) rotate(-30deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.flower-float {
+  animation: flower-drift var(--d, 9s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flower-float {
+    animation: none;
+  }
 }

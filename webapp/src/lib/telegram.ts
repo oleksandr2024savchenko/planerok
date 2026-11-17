@@ -31,6 +31,13 @@ export async function initTelegram(): Promise<TelegramWebApp | null> {
   }
 }
 
+export function setTelegramColors(color: string) {
+  if (!webApp?.isVersionAtLeast("6.1")) return;
+  const sdk = webApp;
+  safely(() => sdk.setHeaderColor(color as `#${string}`));
+  safely(() => sdk.setBackgroundColor(color as `#${string}`));
+}
+
 export function getInitData(): string {
   return webApp?.initData ?? "";
 }
