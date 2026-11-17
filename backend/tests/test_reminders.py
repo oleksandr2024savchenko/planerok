@@ -202,3 +202,24 @@ def test_google_reminder_overrides_are_imported() -> None:
     assert default is not None
     assert default.remind_before_minutes is None
     assert default.uses_default_reminders
+
+
+def test_ics_events_serialize_without_reminder_offset() -> None:
+    from app.models import ExternalCalendar, ExternalEvent
+    from app.services.external_calendars import _as_task
+
+    feed = ExternalCalendar(id=1, user_id=1, name="Універ", url="https://example.com/a.ics")
+    event = ExternalEvent(
+        id=5,
+        calendar_id=1,
+        uid="u#1",
+        title="Лекція",
+        start_time=EVENT,
+        end_time=EVENT + timedelta(hours=1),
+        all_day=False,
+        is_completed=False,
+    )
+    read = _as_task(event, feed)
+    assert read.id == -5
+    assert read.remind_before_minutes is None
+    assert read.model_dump(mode="json")["remind_before_minutes"] is None

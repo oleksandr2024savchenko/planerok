@@ -2,6 +2,19 @@ import { dateKey, formatDayKey, todayKey } from "./date";
 import { CATEGORIES, type Category, type Priority, type Task } from "./types";
 
 export type FilterId = "today" | "scheduled" | "all" | `tag:${Category}`;
+export type AudienceId = "mine" | "shared" | "all";
+
+export const AUDIENCES: { id: AudienceId; label: string }[] = [
+  { id: "mine", label: "Мої" },
+  { id: "shared", label: "Спільні ⚡️" },
+  { id: "all", label: "Усі" },
+];
+
+export function matchesAudience(task: Task, audience: AudienceId): boolean {
+  if (audience === "shared") return Boolean(task.is_shared);
+  if (audience === "mine") return !task.is_shared;
+  return true;
+}
 
 export interface FilterOption {
   id: FilterId;
@@ -25,6 +38,7 @@ export function isDueToday(task: Task, today = todayKey()): boolean {
 }
 
 export function isOverdue(task: Task, today = todayKey()): boolean {
+  if (task.read_only) return false;
   const stamp = scheduleStamp(task);
   return !task.is_completed && stamp !== null && dateKey(stamp) < today;
 }

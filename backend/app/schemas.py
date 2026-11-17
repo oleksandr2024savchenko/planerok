@@ -32,6 +32,8 @@ class TaskCreate(BaseModel):
     remind_before_minutes: int | None = Field(default=None, ge=0, le=MAX_OFFSET_MINUTES)
     start_time: datetime | None = None
     end_time: datetime | None = None
+    is_shared: bool = False
+    for_partner: bool = False
 
     @field_validator("deadline", "remind_at", "start_time", "end_time")
     @classmethod
@@ -50,8 +52,9 @@ class TaskUpdate(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     is_completed: bool | None = None
+    is_shared: bool | None = None
 
-    @field_validator("title", "priority", "is_completed")
+    @field_validator("title", "priority", "is_completed", "is_shared")
     @classmethod
     def _not_null(cls, value: object) -> object:
         if value is None:
@@ -74,16 +77,41 @@ class TaskRead(BaseModel):
     priority: Priority
     deadline: datetime | None
     remind_at: datetime | None
-    remind_before_minutes: int | None
+    remind_before_minutes: int | None = None
     start_time: datetime | None
     end_time: datetime | None
     google_event_id: str | None
     sync_token: str | None
     is_completed: bool
+    is_shared: bool = False
+    owner_id: int | None = None
+    assigned_to_id: int | None = None
     created_at: datetime
+    read_only: bool = False
+    all_day: bool = False
+    source_name: str | None = None
 
     @field_serializer("deadline", "remind_at", "start_time", "end_time", "created_at")
     def _serialize_dt(self, value: datetime | None) -> str | None:
+        localized = _to_vienna(value)
+        return localized.isoformat() if localized else None
+
+
+class FeedCreate(BaseModel):
+    url: str = Field(min_length=8, max_length=2000)
+    name: str | None = Field(default=None, max_length=120)
+
+
+class FeedRead(BaseModel):
+    id: int
+    name: str
+    host: str
+    last_sync_at: datetime | None = None
+    last_error: str | None = None
+    event_count: int = 0
+
+    @field_serializer("last_sync_at")
+    def _serialize_last_sync(self, value: datetime | None) -> str | None:
         localized = _to_vienna(value)
         return localized.isoformat() if localized else None
 

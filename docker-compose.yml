@@ -51,8 +51,6 @@ services:
       args:
         NEXT_PUBLIC_API_URL: https://planer.pp.ua
         NEXT_PUBLIC_USE_MOCKS: "false"
-        # Telegram user ids (comma-separated) that see the pink theme; everyone else gets purple.
-        NEXT_PUBLIC_PINK_USER_IDS: ${PINK_USER_IDS:-}
     container_name: planer-webapp
     restart: unless-stopped
     ports:

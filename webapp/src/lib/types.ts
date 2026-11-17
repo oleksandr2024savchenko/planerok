@@ -10,13 +10,26 @@ export interface Task {
   deadline: string | null;
   remind_at: string | null;
   /** Relative reminder in minutes before the event; the server derives `remind_at` from it. */
-  remind_before_minutes: number | null;
+  remind_before_minutes?: number | null;
   start_time: string | null;
   end_time: string | null;
   google_event_id: string | null;
   sync_token: string | null;
   is_completed: boolean;
+  is_shared?: boolean;
   created_at: string;
+  read_only?: boolean;
+  all_day?: boolean;
+  source_name?: string | null;
+}
+
+export interface CalendarFeed {
+  id: number;
+  name: string;
+  host: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+  event_count: number;
 }
 
 export interface TaskCreate {
@@ -29,6 +42,7 @@ export interface TaskCreate {
   remind_before_minutes?: number | null;
   start_time?: string | null;
   end_time?: string | null;
+  is_shared?: boolean;
 }
 
 export interface CalendarStatus {

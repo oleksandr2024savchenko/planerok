@@ -62,6 +62,14 @@ class ParsedTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: datetime | None = Field(default=None, description="Event/due time as ISO 8601.")
     remind_at: datetime | None = Field(default=None, description="Reminder time as ISO 8601.")
+    is_shared: bool = Field(
+        default=False,
+        description="True when the task is for both partners: нам, разом, спільне.",
+    )
+    for_partner: bool = Field(
+        default=False,
+        description="True when the task is for the partner, not a shared one.",
+    )
     remind_before_minutes: int | None = Field(
         default=None,
         ge=0,
@@ -131,6 +139,8 @@ class _GeminiTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
     remind_at: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
+    is_shared: bool = Field(default=False, description="True for нам, разом, спільне.")
+    for_partner: bool = Field(default=False, description="True when the task is only for the partner.")
     remind_before_minutes: int | None = Field(
         default=None,
         description="Minutes before the event to remind (1440 = one day before), or null.",
@@ -161,8 +171,10 @@ def build_system_prompt(now: datetime | None = None) -> str:
         "- Якщо нагадування задано відносно події («нагадай за день», «за 2 години до», «за тиждень») — "
         "remind_before_minutes = кількість хвилин (година=60, день=1440, тиждень=10080), remind_at = null.\n"
         "- Кілька справ в одному повідомленні → кілька елементів у tasks.\n"
+        "- is_shared=true, якщо звучить «нам», «разом», «спільне», «ми», «обом».\n"
+        "- for_partner=true, якщо справа лише для партнерки («їй», «для неї», «дівчині»), і тоді is_shared=false.\n"
         "- Якщо завдань немає, поверни порожній список tasks.\n"
-        '- Відповідь — лише JSON {"tasks":[{"title","description","category","priority","deadline","remind_at","remind_before_minutes"}]}.'
+        "- Відповідь — лише JSON {\"tasks\":[{\"title\",\"description\",\"category\",\"priority\",\"deadline\",\"remind_at\",\"remind_before_minutes\",\"is_shared\",\"for_partner\"}]}."
     )
 
 
@@ -192,7 +204,28 @@ def to_task_create(task: ParsedTask) -> TaskCreate:
         deadline=task.deadline,
         remind_at=None if task.remind_before_minutes is not None else task.remind_at,
         remind_before_minutes=task.remind_before_minutes,
+        is_shared=task.is_shared,
+        for_partner=task.for_partner and not task.is_shared,
     )
+
+
+_SHARED_MARKERS = (" нам ", " разом", "спільн", " обом", " ми ")
+_PARTNER_MARKERS = ("їй", "для неї", "дівчин", "партнерц")
+
+
+def apply_audience(tasks: list[ParsedTask], text: str | None) -> list[ParsedTask]:
+    """Trust explicit couple wording over a model that forgot the flags."""
+    if not text or not tasks:
+        return tasks
+    folded = f" {text.lower()} "
+    shared = any(marker in folded for marker in _SHARED_MARKERS)
+    partner = any(marker in folded for marker in _PARTNER_MARKERS)
+    if not shared and not partner:
+        return tasks
+    return [
+        task.model_copy(update={"is_shared": shared, "for_partner": partner and not shared})
+        for task in tasks
+    ]
 
 
 @lru_cache

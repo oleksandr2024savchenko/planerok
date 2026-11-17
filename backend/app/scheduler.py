@@ -6,6 +6,7 @@ from apscheduler.jobstores.base import JobLookupError
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 
 from app.bot.keyboards import reminder_keyboard
@@ -36,6 +37,7 @@ def setup_scheduler(bot: Bot, settings: Settings) -> AsyncIOScheduler:
         }
     )
     _configure_google_job(settings)
+    _configure_external_feeds()
     return scheduler
 
 
@@ -48,6 +50,17 @@ def _configure_google_job(settings: Settings) -> None:
         "app.services.google_calendar:refresh_google_watch",
         trigger=IntervalTrigger(hours=6, timezone=TIMEZONE),
         id=job_id,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+
+def _configure_external_feeds() -> None:
+    scheduler.add_job(
+        "app.services.external_calendars:refresh_external_feeds",
+        trigger=IntervalTrigger(minutes=30, timezone=TIMEZONE),
+        id="external-calendars-sync",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
@@ -91,8 +104,68 @@ async def send_reminder(task_id: int) -> None:
         task = await session.get(Task, task_id)
         if task is None or task.is_completed:
             return
-        await _bot.send_message(
-            chat_id=task.user_id,
-            text=reminder_text(task),
-            reply_markup=reminder_keyboard(task.id),
-        )
+        recipients = {task.user_id, task.owner_id}
+        if task.assigned_to_id:
+            recipients.add(task.assigned_to_id)
+        if task.is_shared:
+            from app.services.users import partner_id
+
+            other = await partner_id(session, task.owner_id or task.user_id)
+            if other:
+                recipients.add(other)
+        for chat_id in recipients:
+            if not chat_id:
+                continue
+            await _bot.send_message(
+                chat_id=chat_id,
+                text=reminder_text(task),
+                reply_markup=reminder_keyboard(task.id),
+            )
+
+
+async def notify_shared_closed(task: Task, actor_id: int | None) -> None:
+    if _bot is None or not task.is_shared:
+        return
+    from app.services.users import partner_id
+
+    async with session_factory() as session:
+        owner = task.owner_id or task.user_id
+        partner = await partner_id(session, owner)
+    other = partner if actor_id in (None, owner) else owner
+    if other is None or other == actor_id:
+        return
+    await _bot.send_message(chat_id=other, text=f"⚡️ Спільну задачу «{task.title}» закрито.")
+
+
+def schedule_digests(users: list) -> None:
+    slots = (
+        ("morning", "morning_time", "Ранок"),
+        ("afternoon", "afternoon_time", "День"),
+        ("evening", "evening_time", "Вечір"),
+    )
+    for user in users:
+        for slot, attr, _label in slots:
+            clock = getattr(user, attr)
+            scheduler.add_job(
+                send_digest,
+                trigger=CronTrigger(hour=clock.hour, minute=clock.minute, timezone=TIMEZONE),
+                id=f"digest:{user.telegram_id}:{slot}",
+                args=[user.telegram_id, slot],
+                replace_existing=True,
+            )
+
+
+async def send_digest(telegram_id: int, slot: str) -> None:
+    if _bot is None:
+        return
+    from app.services.tasks import list_tasks
+    from app.schemas import TaskScope
+
+    labels = {"morning": "Ранок", "afternoon": "День", "evening": "Вечір"}
+    async with session_factory() as session:
+        tasks = await list_tasks(session, telegram_id, TaskScope.TODAY)
+    open_tasks = [task for task in tasks if not task.is_completed]
+    if not open_tasks:
+        return
+    lines = "\n".join(f"• {task.title}" for task in open_tasks[:12])
+    await _bot.send_message(chat_id=telegram_id, text=f"{labels.get(slot, 'Нагадування')}\n{lines}")

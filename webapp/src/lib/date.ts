@@ -79,6 +79,19 @@ export function formatTime(iso: string): string {
   return timeFormat.format(new Date(iso));
 }
 
+/** `HH:mm` for `<input type="time">`, in the Vienna clock. */
+export function clockInput(iso: string): string {
+  const { hour, minute } = viennaClock(new Date(iso));
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** Moves an `HH:mm` value by `minutes`, staying inside the same day. */
+export function shiftTime(time: string, minutes: number): string {
+  const [hour, minute] = time.split(":").map(Number);
+  const total = Math.min(23 * 60 + 59, Math.max(0, hour * 60 + minute + minutes));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function formatDayKey(key: string): string {
   const today = todayKey();
   if (key === today) return "Сьогодні";

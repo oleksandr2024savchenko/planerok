@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import scheduler
 from app.config import TIMEZONE
-from app.models import Task
+from app.models import Task, User
 from app.schemas import TaskCreate, TaskScope, TaskUpdate
 from app.services.reminders import remind_at_for
 
@@ -62,13 +62,30 @@ def apply_schedule(payload: dict) -> dict:
     return payload
 
 
+async def _partner_of(session: AsyncSession, user_id: int) -> int | None:
+    user = await session.get(User, user_id)
+    return user.partner_telegram_id if user else None
+
+
+def _visible_to(user_id: int, partner: int | None):
+    clauses = [
+        Task.owner_id == user_id,
+        Task.user_id == user_id,
+        Task.assigned_to_id == user_id,
+    ]
+    if partner is not None:
+        clauses.append(and_(Task.is_shared.is_(True), Task.owner_id == partner))
+    return or_(*clauses)
+
+
 async def list_tasks(
     session: AsyncSession,
     user_id: int,
     scope: TaskScope = TaskScope.ALL,
     category: str | None = None,
 ) -> Sequence[Task]:
-    stmt = select(Task).where(Task.user_id == user_id)
+    partner = await _partner_of(session, user_id)
+    stmt = select(Task).where(_visible_to(user_id, partner))
 
     today_start, tomorrow_start = _day_bounds()
     if scope is TaskScope.TODAY:
@@ -96,9 +113,13 @@ async def list_tasks(
 
 async def get_task(session: AsyncSession, user_id: int, task_id: int) -> Task | None:
     task = await session.get(Task, task_id)
-    if task is None or task.user_id != user_id:
+    if task is None:
         return None
-    return task
+    partner = await _partner_of(session, user_id)
+    visible = task.owner_id == user_id or task.user_id == user_id or task.assigned_to_id == user_id
+    if task.is_shared and partner is not None and task.owner_id == partner:
+        visible = True
+    return task if visible else None
 
 
 async def create_task(
@@ -108,11 +129,28 @@ async def create_task(
     *,
     push_google: bool = True,
 ) -> Task:
-    payload = apply_schedule(data.model_dump())
-    task = Task(user_id=user_id, **payload)
+    raw = apply_schedule(data.model_dump())
+    is_shared = bool(raw.pop("is_shared", False))
+    for_partner = bool(raw.pop("for_partner", False)) and not is_shared
+    owner_id = user_id
+    assigned_to_id = None
+    if for_partner:
+        partner = await _partner_of(session, user_id)
+        if partner is not None:
+            owner_id = partner
+            assigned_to_id = partner
+        else:
+            logger.warning("for_partner ignored: user %s has no partner", user_id)
+    task = Task(
+        user_id=owner_id,
+        owner_id=owner_id,
+        is_shared=is_shared,
+        assigned_to_id=assigned_to_id,
+        **raw,
+    )
     apply_relative_reminder(
         task,
-        explicit_remind_at=payload.get("remind_at") is not None,
+        explicit_remind_at=raw.get("remind_at") is not None,
         offset_changed=True,
         anchor_changed=True,
     )
@@ -131,7 +169,9 @@ async def update_task(
     data: TaskUpdate,
     *,
     push_google: bool = True,
+    actor_id: int | None = None,
 ) -> Task:
+    was_completed = task.is_completed
     changes = data.model_dump(exclude_unset=True)
     anchor_before = (task.start_time, task.deadline)
     for field, value in changes.items():
@@ -149,56 +189,119 @@ async def update_task(
     sync_reminder(task)
     if push_google:
         await _mirror_google(session, task)
+    if task.is_shared and not was_completed and task.is_completed:
+        await scheduler.notify_shared_closed(task, actor_id=actor_id)
     return task
 
 
 async def delete_task(session: AsyncSession, task: Task, *, push_google: bool = True) -> None:
     task_id = task.id
     event_id = task.google_event_id
+    partner_event_id = task.partner_google_event_id
+    owner_id = task.owner_id
     await session.delete(task)
     await session.commit()
     scheduler.cancel_reminder(task_id)
-    if push_google and event_id:
-        from app.services.google_calendar import delete_google_event
+    if not push_google:
+        return
+    from app.services.google_calendar import delete_event
 
-        try:
-            await delete_google_event(event_id)
-        except Exception:
-            logger.exception("Google Calendar delete failed for event %s; local task is already gone", event_id)
+    try:
+        if event_id:
+            await delete_event(event_id, calendar_id=await _calendar_for(owner_id))
+        if partner_event_id:
+            partner = await _partner_of_id(owner_id)
+            await delete_event(partner_event_id, calendar_id=await _calendar_for(partner) if partner else None)
+    except Exception:
+        logger.exception("Google Calendar delete failed for task %s; local task is already gone", task_id)
+
+
+async def _calendar_for(telegram_id: int | None) -> str | None:
+    if telegram_id is None:
+        return None
+    from app.db import session_factory
+    from app.services.users import calendar_id_for
+
+    async with session_factory() as session:
+        return await calendar_id_for(session, telegram_id)
+
+
+async def _partner_of_id(telegram_id: int | None) -> int | None:
+    if telegram_id is None:
+        return None
+    from app.db import session_factory
+
+    async with session_factory() as session:
+        return await _partner_of(session, telegram_id)
 
 
 async def _mirror_google(session: AsyncSession, task: Task) -> None:
     from app.services.google_calendar import (
+        GoogleEventMissing,
         build_event_body,
-        create_google_event,
-        delete_google_event,
+        create_event,
+        delete_event,
         is_configured,
-        update_google_event,
+        update_event,
     )
+    from app.services.users import calendar_id_for
 
     if not is_configured():
         return
 
-    has_event = build_event_body(task) is not None
+    body = build_event_body(task)
+    owner_calendar = await calendar_id_for(session, task.owner_id or task.user_id)
+    partner = await _partner_of(session, task.owner_id or task.user_id)
+    partner_calendar = await calendar_id_for(session, partner) if task.is_shared and partner else None
     try:
-        if task.google_event_id and not has_event:
-            await delete_google_event(task.google_event_id)
-            task.google_event_id = None
-            await session.commit()
-            return
-        if not has_event:
-            return
-        if task.google_event_id:
-            await update_google_event(task)
-        else:
-            task.google_event_id = await create_google_event(task)
+        task.google_event_id = await _sync_event(
+            body,
+            owner_calendar,
+            task.google_event_id,
+            create_event,
+            update_event,
+            delete_event,
+            GoogleEventMissing,
+        )
+        if task.is_shared and partner_calendar and partner_calendar != owner_calendar:
+            task.partner_google_event_id = await _sync_event(
+                body,
+                partner_calendar,
+                task.partner_google_event_id,
+                create_event,
+                update_event,
+                delete_event,
+                GoogleEventMissing,
+            )
+        elif task.partner_google_event_id:
+            await delete_event(task.partner_google_event_id, calendar_id=partner_calendar)
+            task.partner_google_event_id = None
         await session.commit()
     except Exception:
         logger.exception("Google Calendar mirror failed for task %s; the task stays saved", task.id)
 
 
-async def complete_task(session: AsyncSession, task: Task) -> Task:
-    return await update_task(session, task, TaskUpdate(is_completed=True))
+async def _sync_event(body, calendar_id, event_id, create_event, update_event, delete_event, missing):
+    from app.services.google_calendar import _spec_from_body
+
+    if not calendar_id:
+        return event_id
+    spec = _spec_from_body(body) if body is not None else None
+    if spec is None:
+        if event_id:
+            await delete_event(event_id, calendar_id=calendar_id)
+        return None
+    if event_id:
+        try:
+            await update_event(event_id, calendar_id=calendar_id, **spec)
+            return event_id
+        except missing:
+            pass
+    return await create_event(calendar_id=calendar_id, **spec)
+
+
+async def complete_task(session: AsyncSession, task: Task, *, actor_id: int | None = None) -> Task:
+    return await update_task(session, task, TaskUpdate(is_completed=True), actor_id=actor_id)
 
 
 async def snooze_task(session: AsyncSession, task: Task, delta: timedelta) -> Task:

@@ -37,6 +37,7 @@ from app.services.ai_agent import (
     ParsedTask,
     TaskExtractionError,
     TaskExtractionResult,
+    apply_audience,
     finalize_task,
     parse_input_to_tasks,
     to_task_create,
@@ -75,9 +76,11 @@ async def _extract(text: str | None = None, audio_bytes: bytes | None = None) ->
         raise
     if not result.tasks and text:
         try:
-            return _regex_fallback(text)
+            result = _regex_fallback(text)
         except EmptyTitleError:
             return result
+    if text:
+        result = TaskExtractionResult(tasks=apply_audience(result.tasks, text))
     return result
 
 

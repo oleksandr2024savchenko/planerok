@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import TIMEZONE, get_settings
 from app.db import session_factory
-from app.models import GoogleCalendarState, Task
+from app.models import GoogleCalendarState, Task, User
 from app.schemas import _to_vienna
 from app.services.reminders import DATE_ONLY_ANCHOR, remind_at_for
 
@@ -79,8 +79,14 @@ def is_configured() -> bool:
 
 
 def owner_user_id() -> int | None:
+    """Telegram user that owns events imported from Google."""
     settings = get_settings()
-    return settings.google_owner_user_id or settings.dev_user_id
+    if settings.google_owner_user_id:
+        return settings.google_owner_user_id
+    if settings.dev_user_id:
+        return settings.dev_user_id
+    allowed = settings.allowed_telegram_id_list
+    return allowed[0] if allowed else None
 
 
 def _rfc3339(value: datetime) -> str:
@@ -334,13 +340,49 @@ def _service(creds: Credentials | ServiceAccountCredentials):
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
-async def _state(session: AsyncSession) -> GoogleCalendarState:
-    state = await session.scalar(select(GoogleCalendarState).limit(1))
+async def _state_for(session: AsyncSession, calendar_id: str) -> GoogleCalendarState:
+    state = await session.scalar(
+        select(GoogleCalendarState).where(GoogleCalendarState.calendar_id == calendar_id).limit(1)
+    )
     if state is None:
-        state = GoogleCalendarState(calendar_id=get_settings().google_calendar_id)
+        state = GoogleCalendarState(calendar_id=calendar_id)
         session.add(state)
         await session.flush()
     return state
+
+
+async def _state(session: AsyncSession) -> GoogleCalendarState:
+    preferred = (get_settings().google_calendar_id or "").strip()
+    if preferred and preferred != "primary":
+        return await _state_for(session, preferred)
+    state = await session.scalar(select(GoogleCalendarState).limit(1))
+    if state is None:
+        state = GoogleCalendarState(calendar_id=preferred or "primary")
+        session.add(state)
+        await session.flush()
+    return state
+
+
+async def sync_targets() -> list[tuple[int, str]]:
+    """Personal calendars to pull, as (owner telegram id, calendar id)."""
+    async with session_factory() as session:
+        users = list(await session.scalars(select(User).where(User.google_calendar_id.is_not(None))))
+    seen: set[str] = set()
+    targets: list[tuple[int, str]] = []
+    for user in users:
+        calendar_id = (user.google_calendar_id or "").strip()
+        if not calendar_id or calendar_id in seen:
+            continue
+        seen.add(calendar_id)
+        targets.append((user.telegram_id, calendar_id))
+    if targets:
+        return targets
+    settings = get_settings()
+    fallback = (settings.google_calendar_id or "").strip()
+    owner = owner_user_id()
+    if owner and fallback and fallback != "primary":
+        return [(owner, fallback)]
+    return []
 
 
 def _fetch_changes(creds: Credentials | ServiceAccountCredentials, calendar_id: str, sync_token: str | None):
@@ -495,9 +537,10 @@ async def create_event(
     description: str | None = None,
     all_day: bool = False,
     private: dict[str, str] | None = None,
+    calendar_id: str | None = None,
     reminders: dict | None = None,
 ) -> str:
-    """Create an event on GOOGLE_CALENDAR_ID in Europe/Vienna. Returns the event id."""
+    """Create an event in Europe/Vienna. Returns the event id."""
     body = _event_body(
         summary=summary,
         start=start,
@@ -508,13 +551,14 @@ async def create_event(
     )
     if reminders is not None:
         body["reminders"] = reminders
-    creds, calendar_id = await _credentials_and_calendar()
+    creds, resolved = await _credentials_and_calendar()
+    target = calendar_id or resolved
     try:
-        event_id = await asyncio.to_thread(_insert_event, creds, calendar_id, body)
+        event_id = await asyncio.to_thread(_insert_event, creds, target, body)
     except (HttpError, GoogleAuthError) as exc:
         logger.exception("Failed to create Google event")
         raise GoogleCalendarError("Не вдалося створити подію в Google Calendar") from exc
-    logger.info("Created Google event %s on calendar %s", event_id, calendar_id)
+    logger.info("Created Google event %s on calendar %s", event_id, target)
     return event_id
 
 
@@ -527,6 +571,7 @@ async def update_event(
     description: str | None = None,
     all_day: bool = False,
     private: dict[str, str] | None = None,
+    calendar_id: str | None = None,
     reminders: dict | None = None,
 ) -> None:
     body = _event_body(
@@ -539,9 +584,10 @@ async def update_event(
     )
     if reminders is not None:
         body["reminders"] = reminders
-    creds, calendar_id = await _credentials_and_calendar()
+    creds, resolved = await _credentials_and_calendar()
+    target = calendar_id or resolved
     try:
-        await asyncio.to_thread(_patch_event, creds, calendar_id, event_id, body)
+        await asyncio.to_thread(_patch_event, creds, target, event_id, body)
     except HttpError as exc:
         if getattr(exc.resp, "status", None) == 404:
             raise GoogleEventMissing(event_id) from exc
@@ -552,13 +598,14 @@ async def update_event(
         raise GoogleCalendarError("Не вдалося оновити подію в Google Calendar") from exc
 
 
-async def delete_event(event_id: str) -> None:
+async def delete_event(event_id: str, calendar_id: str | None = None) -> None:
     try:
-        creds, calendar_id = await _credentials_and_calendar()
+        creds, resolved = await _credentials_and_calendar()
     except GoogleCalendarError:
         return
+    target = calendar_id or resolved
     try:
-        await asyncio.to_thread(_remove_event, creds, calendar_id, event_id)
+        await asyncio.to_thread(_remove_event, creds, target, event_id)
     except (HttpError, GoogleAuthError):
         logger.exception("Failed to delete Google event %s", event_id)
 
@@ -592,42 +639,54 @@ async def delete_google_event(google_event_id: str) -> None:
 
 
 async def sync_from_google(sync_token: str | None = None) -> str | None:
-    """Pull new and changed events. Returns the next sync token."""
-    owner = owner_user_id()
+    """Pull new and changed events from every personal calendar. Returns the last sync token."""
+    targets = await sync_targets()
+    if not targets:
+        logger.warning("No Google calendars are configured")
+        return None
+    last: str | None = None
+    errors = 0
+    for owner, calendar_id in targets:
+        try:
+            last = await _sync_calendar(calendar_id, owner, sync_token if len(targets) == 1 else None)
+        except GoogleCalendarError:
+            errors += 1
+    if errors == len(targets):
+        raise GoogleCalendarError("Не вдалося синхронізувати Google Calendar")
+    return last
+
+
+async def _sync_calendar(calendar_id: str, owner: int, sync_token: str | None) -> str | None:
     async with session_factory() as session:
-        state = await _state(session)
+        state = await _state_for(session, calendar_id)
         token = sync_token if sync_token is not None else state.sync_token
         try:
             creds = _credentials(state.refresh_token)
-            calendar_id = await asyncio.to_thread(resolve_calendar_id, creds)
             try:
                 items, next_token = await asyncio.to_thread(_fetch_changes, creds, calendar_id, token)
             except HttpError as exc:
                 if token and getattr(exc.resp, "status", None) == 410:
-                    logger.info("Google sync token expired, running a full sync")
+                    logger.info("Google sync token expired for %s, running a full sync", calendar_id)
                     items, next_token = await asyncio.to_thread(_fetch_changes, creds, calendar_id, None)
                 else:
                     raise
         except (HttpError, GoogleAuthError, GoogleCalendarError) as exc:
             state.last_error = str(exc)[:500]
             await session.commit()
-            logger.exception("Google Calendar sync failed")
+            logger.exception("Google Calendar sync failed for %s", calendar_id)
             raise GoogleCalendarError("Не вдалося синхронізувати Google Calendar") from exc
 
         changed: list[Task] = []
         removed: list[int] = []
-        if owner is None:
-            logger.warning("GOOGLE_OWNER_USER_ID is empty; imported events will not be stored")
-        else:
-            for item in items:
-                change = parse_google_event(item)
-                if change is None:
-                    continue
-                task, deleted_id = await _apply_change(session, change, owner=owner, sync_token=next_token)
-                if deleted_id is not None:
-                    removed.append(deleted_id)
-                elif task is not None:
-                    changed.append(task)
+        for item in items:
+            change = parse_google_event(item)
+            if change is None:
+                continue
+            task, deleted_id = await _apply_change(session, change, owner=owner, sync_token=next_token)
+            if deleted_id is not None:
+                removed.append(deleted_id)
+            elif task is not None:
+                changed.append(task)
 
         state.sync_token = next_token
         state.calendar_id = calendar_id
@@ -642,7 +701,7 @@ async def sync_from_google(sync_token: str | None = None) -> str | None:
         cancel_reminder(task_id)
     for task in changed:
         sync_reminder(task)
-    logger.info("Google sync applied %s changes (%s removed)", len(changed), len(removed))
+    logger.info("Google sync for %s applied %s changes (%s removed)", calendar_id, len(changed), len(removed))
     return next_token
 
 
@@ -654,10 +713,20 @@ async def _apply_change(
     sync_token: str | None,
 ) -> tuple[Task | None, int | None]:
     task = await session.scalar(select(Task).where(Task.google_event_id == change.event_id))
+    if task is None:
+        mirrored = await session.scalar(select(Task).where(Task.partner_google_event_id == change.event_id))
+        if mirrored is not None:
+            return None, None
     if task is None and change.planer_task_id is not None:
         candidate = await session.get(Task, change.planer_task_id)
-        if candidate is not None and (candidate.google_event_id in (None, change.event_id)):
+        if candidate is not None and candidate.google_event_id in (None, change.event_id):
             task = candidate
+        elif candidate is not None and candidate.partner_google_event_id in (None, change.event_id):
+            if candidate.partner_google_event_id is None:
+                candidate.partner_google_event_id = change.event_id
+            return None, None
+        elif candidate is not None:
+            return None, None
 
     if change.cancelled:
         if task is None:
@@ -673,6 +742,7 @@ async def _apply_change(
             return None, None
         task = Task(
             user_id=owner,
+            owner_id=owner,
             title=change.title,
             description=change.description,
             category="особисте",
@@ -720,11 +790,20 @@ async def ensure_watch() -> None:
     if not settings.google_webhook_url:
         logger.info("GOOGLE_WEBHOOK_URL is empty; push sync is off")
         return
+    targets = await sync_targets()
+    calendar_ids = [calendar_id for _, calendar_id in targets]
+    if not calendar_ids and settings.google_calendar_id:
+        calendar_ids = [settings.google_calendar_id]
+    for calendar_id in calendar_ids:
+        await _ensure_watch(calendar_id)
+
+
+async def _ensure_watch(calendar_id: str) -> None:
+    settings = get_settings()
     async with session_factory() as session:
-        state = await _state(session)
+        state = await _state_for(session, calendar_id)
         creds = _credentials(state.refresh_token)
-        calendar_id = settings.google_calendar_id or state.calendar_id
-        token = settings.google_channel_token or state.channel_token or secrets.token_urlsafe(24)
+        token = state.channel_token or secrets.token_urlsafe(24)
         expiration = state.channel_expiration
         fresh = expiration is not None and expiration > datetime.now(TIMEZONE) + timedelta(days=1)
         if state.channel_id and state.resource_id and fresh:
@@ -739,7 +818,7 @@ async def ensure_watch() -> None:
         except (HttpError, GoogleAuthError) as exc:
             state.last_error = str(exc)[:500]
             await session.commit()
-            logger.exception("Failed to start Google Calendar watch")
+            logger.exception("Failed to start Google Calendar watch for %s", calendar_id)
             return
         expires_ms = int(watched.get("expiration") or 0)
         state.channel_id = channel_id
@@ -750,7 +829,7 @@ async def ensure_watch() -> None:
             datetime.fromtimestamp(expires_ms / 1000, tz=TIMEZONE) if expires_ms else datetime.now(TIMEZONE) + _WATCH_TTL
         )
         await session.commit()
-        logger.info("Google Calendar watch active until %s", state.channel_expiration)
+        logger.info("Google Calendar watch for %s active until %s", calendar_id, state.channel_expiration)
 
 
 async def store_refresh_token(session: AsyncSession, refresh_token: str) -> None:
@@ -776,9 +855,12 @@ async def accept_push(channel_token: str | None, resource_state: str | None) -> 
     if resource_state == "sync":
         return False
     async with session_factory() as session:
-        state = await session.scalar(select(GoogleCalendarState).limit(1))
-    expected = (state.channel_token if state else None) or get_settings().google_channel_token
-    if expected and channel_token != expected:
+        stored = list(await session.scalars(select(GoogleCalendarState.channel_token)))
+    expected = {token for token in stored if token}
+    settings_token = get_settings().google_channel_token
+    if settings_token:
+        expected.add(settings_token)
+    if expected and channel_token not in expected:
         logger.warning("Ignored Google push with an unexpected channel token")
         return False
     return True

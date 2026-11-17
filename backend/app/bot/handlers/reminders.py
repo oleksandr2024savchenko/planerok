@@ -24,7 +24,7 @@ async def on_reminder_action(
 
     match callback_data.action:
         case ReminderAction.DONE:
-            task = await tasks_service.complete_task(session, task)
+            task = await tasks_service.complete_task(session, task, actor_id=callback.from_user.id)
             status, toast = "✅ <b>Виконано</b>", "Чудова робота! 🎉"
         case ReminderAction.SNOOZE_15M:
             task = await tasks_service.snooze_task(session, task, timedelta(minutes=15))

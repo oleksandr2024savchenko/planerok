@@ -1,9 +1,9 @@
 "use client";
 
 import { Bell, BellOff } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
-import { cn } from "@/lib/cn";
+import { ChoiceChip, SegmentedControl } from "@/components/SegmentedControl";
 import { formatDay, formatTime } from "@/lib/date";
 import {
   MAX_OFFSET_MINUTES,
@@ -15,12 +15,11 @@ import {
 } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 
-/** Remount with a `key` to reset its custom-interval fields. */
 interface ReminderPickerProps {
-  /** Minutes before the event, or null for no reminder. */
+  /** Minutes before the event, or null for no reminder. Remount with a `key` to reset. */
   value: number | null;
   onChange: (value: number | null) => void;
-  /** When the reminder will fire for the current value, for the preview line. */
+  /** When the reminder fires for the current value, for the hint line. */
   preview: string | null;
   /** Explains how date-only tasks are counted. */
   dateOnly?: boolean;
@@ -28,6 +27,8 @@ interface ReminderPickerProps {
 
 const isPreset = (value: number | null) =>
   value !== null && (REMINDER_PRESETS as readonly number[]).includes(value);
+
+const UNIT_OPTIONS = OFFSET_UNITS.map((unit) => ({ id: unit.id, label: unit.label }));
 
 export function ReminderPicker({ value, onChange, preview, dateOnly = false }: ReminderPickerProps) {
   const [custom, setCustom] = useState(() => value !== null && !isPreset(value));
@@ -49,15 +50,25 @@ export function ReminderPicker({ value, onChange, preview, dateOnly = false }: R
     onChange(next);
   }
 
+  const passed = value !== null && preview !== null && new Date(preview).getTime() <= Date.now();
+
   return (
-    <div className="space-y-2.5">
+    <div className="min-w-0 space-y-2.5">
       <div className="flex flex-wrap gap-2">
         {REMINDER_PRESETS.map((minutes) => (
-          <Chip key={minutes} active={!custom && value === minutes} onClick={() => pick(minutes)}>
+          <ChoiceChip
+            key={minutes}
+            layoutId="task-reminder"
+            anchored
+            active={!custom && value === minutes}
+            onClick={() => pick(minutes)}
+          >
             {shortOffset(minutes)}
-          </Chip>
+          </ChoiceChip>
         ))}
-        <Chip
+        <ChoiceChip
+          layoutId="task-reminder"
+          anchored
           active={custom}
           onClick={() => {
             haptic.selection();
@@ -66,16 +77,16 @@ export function ReminderPicker({ value, onChange, preview, dateOnly = false }: R
           }}
         >
           Свій…
-        </Chip>
-        <Chip active={!custom && value === null} onClick={() => pick(null)}>
-          <BellOff className="size-3.5" />
+        </ChoiceChip>
+        <ChoiceChip layoutId="task-reminder" anchored active={!custom && value === null} onClick={() => pick(null)}>
+          <BellOff className="size-3.5 shrink-0" />
           Вимк.
-        </Chip>
+        </ChoiceChip>
       </div>
 
       {custom && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-400">за</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-sm text-zinc-400">за</span>
           <input
             type="number"
             inputMode="numeric"
@@ -83,62 +94,39 @@ export function ReminderPicker({ value, onChange, preview, dateOnly = false }: R
             value={amount}
             onChange={(event) => applyCustom(event.target.value, unit)}
             aria-label="Скільки"
-            className="w-20 rounded-xl border border-white/5 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50"
+            className="field-focus w-16 shrink-0 rounded-xl border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none"
           />
-          <div className="flex flex-1 rounded-xl border border-white/5 bg-zinc-900/70 p-1">
-            {OFFSET_UNITS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  haptic.selection();
-                  applyCustom(amount, item.id);
-                }}
-                className={cn(
-                  "flex-1 rounded-lg py-1.5 text-xs font-medium transition",
-                  unit === item.id ? "bg-purple-500/20 text-purple-100" : "text-zinc-400 hover:text-zinc-200",
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <span className="text-sm text-zinc-400">до</span>
+          <SegmentedControl
+            className="min-w-0 flex-1"
+            fullWidth
+            anchored
+            size="sm"
+            layoutId="task-reminder-unit"
+            value={unit}
+            options={UNIT_OPTIONS}
+            onChange={(next) => {
+              haptic.selection();
+              applyCustom(amount, next);
+            }}
+          />
+          <span className="shrink-0 text-sm text-zinc-400">до</span>
         </div>
       )}
 
       <p className="flex items-center gap-1.5 text-xs text-zinc-500">
-        <Bell className="size-3" />
-        {value === null
-          ? "Без нагадування"
-          : preview
-            ? `Нагадаю ${formatDay(preview).toLowerCase()} о ${formatTime(preview)}`
-            : "Обери дату, щоб нагадування спрацювало"}
-        {value !== null && preview && new Date(preview).getTime() <= Date.now() && (
-          <span className="text-amber-400/90"> · вже минуло</span>
-        )}
+        <Bell className="size-3 shrink-0" />
+        <span>
+          {value === null
+            ? "Без нагадування"
+            : preview
+              ? `Нагадаю ${formatDay(preview).toLowerCase()} о ${formatTime(preview)}`
+              : "Обери дату, щоб нагадування спрацювало"}
+          {passed && <span className="text-amber-400/90"> · вже минуло</span>}
+        </span>
       </p>
       {dateOnly && value !== null && (
         <p className="text-[11px] text-zinc-600">Для задачі без часу відлік іде від 07:00 дня дедлайну.</p>
       )}
     </div>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition",
-        active
-          ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgb(var(--glow)/0.2)]"
-          : "border-white/5 bg-zinc-900/70 text-zinc-400 hover:border-purple-500/30 hover:text-zinc-200",
-      )}
-    >
-      {children}
-    </button>
   );
 }
