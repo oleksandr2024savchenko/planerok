@@ -235,8 +235,8 @@ function DayColumn({
           className="pointer-events-none absolute inset-x-0 z-20"
           style={{ top: nowTop }}
         >
-          <span className="absolute -left-1 top-1/2 size-2.5 -translate-y-1/2 animate-pulse rounded-full bg-purple-500 shadow-[0_0_10px_#A855F7]" />
-          <span className="block h-px bg-purple-500 shadow-[0_0_10px_#A855F7]" />
+          <span className="absolute -left-1 top-1/2 size-2.5 -translate-y-1/2 animate-pulse rounded-full bg-purple-500 shadow-[0_0_10px_rgb(var(--glow))]" />
+          <span className="block h-px bg-purple-500 shadow-[0_0_10px_rgb(var(--glow))]" />
         </div>
       )}
     </div>

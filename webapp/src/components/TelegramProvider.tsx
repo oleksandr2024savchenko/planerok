@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { initTelegram, type TelegramWebApp } from "@/lib/telegram";
+import { applyTheme } from "@/lib/theme";
 
 interface TelegramContextValue {
   webApp: TelegramWebApp | null;
@@ -24,6 +25,7 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
     initTelegram()
       .then((webApp) => {
         if (cancelled) return;
+        applyTheme(webApp?.initDataUnsafe?.user?.id);
         setValue({
           webApp,
           firstName: webApp?.initDataUnsafe?.user?.first_name ?? null,
@@ -31,7 +33,9 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
         });
       })
       .catch(() => {
-        if (!cancelled) setValue({ webApp: null, firstName: null, isReady: true });
+        if (cancelled) return;
+        applyTheme(null);
+        setValue({ webApp: null, firstName: null, isReady: true });
       });
     return () => {
       cancelled = true;

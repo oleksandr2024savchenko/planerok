@@ -134,7 +134,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition",
         active
-          ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgba(168,85,247,0.2)]"
+          ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgb(var(--glow)/0.2)]"
           : "border-white/5 bg-zinc-900/70 text-zinc-400 hover:border-purple-500/30 hover:text-zinc-200",
       )}
     >

@@ -63,7 +63,7 @@ export function DashboardHeader({ firstName, done, total }: DashboardHeaderProps
 
         <div className="relative mt-4 h-2 overflow-hidden rounded-full bg-zinc-800/80">
           <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 shadow-[0_0_12px_rgba(192,38,211,0.55)]"
+            className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 shadow-[0_0_12px_rgb(var(--glow-alt)/0.55)]"
             initial={{ width: 0 }}
             animate={{ width: `${percent}%` }}
             transition={{ type: "spring", stiffness: 120, damping: 20 }}

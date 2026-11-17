@@ -25,8 +25,8 @@ export function TaskCard({ task, onToggle, onReminder }: TaskCardProps) {
     <article
       className={cn(
         "group relative rounded-2xl border bg-zinc-900/60 p-3.5 backdrop-blur-md transition-all duration-300",
-        "border-white/5 hover:border-purple-500/40 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]",
-        highlight && "border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]",
+        "border-white/5 hover:border-purple-500/40 hover:shadow-[0_0_15px_rgb(var(--glow)/0.15)]",
+        highlight && "border-purple-500/40 shadow-[0_0_15px_rgb(var(--glow)/0.15)]",
         task.is_completed && "opacity-55",
       )}
     >
@@ -52,7 +52,7 @@ export function TaskCard({ task, onToggle, onReminder }: TaskCardProps) {
             {highlight && (
               <span
                 aria-label="Високий пріоритет"
-                className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.85)]"
+                className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fuchsia-400 shadow-[0_0_8px_rgb(var(--glow-hot)/0.85)]"
               />
             )}
           </div>
@@ -126,12 +126,13 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
       className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center"
     >
       <motion.span
-        className="pointer-events-none flex size-6 items-center justify-center rounded-full border-2"
-        animate={{
-          backgroundColor: checked ? "rgb(147 51 234)" : "rgba(0,0,0,0)",
-          borderColor: checked ? "rgb(168 85 247)" : "rgb(82 82 91)",
-          boxShadow: checked ? "0 0 12px rgba(168,85,247,0.55)" : "0 0 0 rgba(0,0,0,0)",
-        }}
+        // Colours come from CSS so they follow the active theme; motion only handles the tap scale.
+        className={cn(
+          "pointer-events-none flex size-6 items-center justify-center rounded-full border-2 transition-[background-color,border-color,box-shadow] duration-200",
+          checked
+            ? "border-purple-500 bg-purple-600 shadow-[0_0_12px_rgb(var(--glow)/0.55)]"
+            : "border-zinc-600 bg-transparent",
+        )}
         whileTap={{ scale: 0.86 }}
         transition={{ type: "spring", stiffness: 500, damping: 28 }}
       >

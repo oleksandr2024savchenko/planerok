@@ -15,7 +15,7 @@ export function SyncBadge({ status }: { status: CalendarStatus }) {
             "relative size-2 rounded-full",
             status.live
               ? "bg-emerald-400 shadow-[0_0_10px_#34d399]"
-              : "bg-purple-500 shadow-[0_0_10px_#A855F7]",
+              : "bg-purple-500 shadow-[0_0_10px_rgb(var(--glow))]",
           )}
         />
       </span>

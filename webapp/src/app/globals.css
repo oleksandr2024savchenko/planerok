@@ -8,6 +8,34 @@
 :root {
   color-scheme: dark;
   --void: #09090b;
+  /* Glow colours as "r g b" so they work with rgb(var(--glow) / alpha). */
+  --glow: 168 85 247;
+  --glow-alt: 192 38 211;
+  --glow-hot: 232 121 249;
+  --picker-hue: 225deg;
+}
+
+/*
+ * Pink theme. Components use the purple/violet/fuchsia utilities; here those palette
+ * variables are remapped to Tailwind's pink/rose values, so no component needs a second set of classes.
+ */
+:root[data-theme="pink"] {
+  --glow: 236 72 153;
+  --glow-alt: 244 63 94;
+  --glow-hot: 251 113 133;
+  --picker-hue: 290deg;
+
+  --color-purple-100: oklch(94.8% 0.028 342.258);
+  --color-purple-200: oklch(89.9% 0.061 343.231);
+  --color-purple-300: oklch(82.3% 0.12 346.018);
+  --color-purple-400: oklch(71.8% 0.202 349.761);
+  --color-purple-500: oklch(65.6% 0.241 354.308);
+  --color-purple-600: oklch(59.2% 0.249 0.584);
+  --color-purple-900: oklch(40.8% 0.153 2.432);
+  --color-purple-950: oklch(28.4% 0.109 3.907);
+  --color-violet-600: oklch(59.2% 0.249 0.584);
+  --color-fuchsia-400: oklch(71.2% 0.194 13.428);
+  --color-fuchsia-500: oklch(71.2% 0.194 13.428);
 }
 
 html,
@@ -17,7 +45,7 @@ body {
 
 body {
   min-height: 100dvh;
-  background-image: radial-gradient(ellipse 80% 50% at 50% -8%, rgba(168, 85, 247, 0.22), transparent 62%);
+  background-image: radial-gradient(ellipse 80% 50% at 50% -8%, rgb(var(--glow) / 0.22), transparent 62%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -25,14 +53,14 @@ body {
 }
 
 ::selection {
-  background: rgba(168, 85, 247, 0.35);
+  background: rgb(var(--glow) / 0.35);
   color: #fafafa;
 }
 
 /* Native date/time pickers: keep the icon visible on dark surfaces. */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7) sepia(1) saturate(4) hue-rotate(225deg);
+  filter: invert(0.7) sepia(1) saturate(4) hue-rotate(var(--picker-hue));
   opacity: 0.8;
 }
 

@@ -125,7 +125,7 @@ function SheetBody({ task, onClose, onSave }: ReminderSheetProps & { task: Task 
                 type="button"
                 onClick={() => void save()}
                 disabled={saving}
-                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 py-3.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(168,85,247,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 py-3.5 text-sm font-semibold text-white shadow-[0_0_24px_rgb(var(--glow)/0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {saving ? "Зберігаю…" : "Зберегти"}
               </button>

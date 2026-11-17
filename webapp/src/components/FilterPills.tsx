@@ -36,7 +36,7 @@ export function FilterPills({ value, counts, onChange }: FilterPillsProps) {
             {active && (
               <motion.span
                 layoutId="active-filter"
-                className="absolute inset-0 rounded-full bg-purple-500/15 shadow-[0_0_20px_rgba(168,85,247,0.25)]"
+                className="absolute inset-0 rounded-full bg-purple-500/15 shadow-[0_0_20px_rgb(var(--glow)/0.25)]"
                 transition={{ type: "spring", stiffness: 400, damping: 32 }}
               />
             )}

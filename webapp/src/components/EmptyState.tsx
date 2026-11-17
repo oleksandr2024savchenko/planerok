@@ -23,7 +23,7 @@ export function EmptyState({ filter, onAdd }: EmptyStateProps) {
 
   return (
     <div className="flex flex-col items-center px-6 py-16 text-center">
-      <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-purple-500/20 bg-purple-500/10 shadow-[0_0_24px_rgba(168,85,247,0.18)]">
+      <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-purple-500/20 bg-purple-500/10 shadow-[0_0_24px_rgb(var(--glow)/0.18)]">
         <ListTodo className="size-6 text-purple-300" />
       </div>
       <h2 className="text-base font-medium text-zinc-100">{copy.title}</h2>

@@ -198,7 +198,7 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
                         className={cn(
                           "rounded-full border px-3 py-1.5 text-sm transition",
                           active
-                            ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgba(168,85,247,0.2)]"
+                            ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgb(var(--glow)/0.2)]"
                             : "border-white/5 bg-zinc-900/70 text-zinc-400 hover:border-purple-500/30 hover:text-zinc-200",
                         )}
                       >
@@ -228,7 +228,7 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
                         className={cn(
                           "rounded-xl border px-2 py-2 text-sm font-medium transition",
                           active
-                            ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgba(168,85,247,0.2)]"
+                            ? "border-purple-500/50 bg-purple-500/15 text-purple-100 shadow-[0_0_16px_rgb(var(--glow)/0.2)]"
                             : "border-white/5 bg-zinc-900/70 text-zinc-400 hover:border-purple-500/30 hover:text-zinc-200",
                         )}
                       >
@@ -283,7 +283,7 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
               <button
                 type="submit"
                 disabled={submitting || !title.trim()}
-                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 py-3.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(168,85,247,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 py-3.5 text-sm font-semibold text-white shadow-[0_0_24px_rgb(var(--glow)/0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? "Зберігаю…" : "Додати задачу"}
               </button>
@@ -303,4 +303,4 @@ function scheduleFor(date: string, time: string) {
 }
 
 const fieldClass =
-  "w-full rounded-xl border border-white/5 bg-zinc-900/80 px-3 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-purple-500/50 focus:shadow-[0_0_20px_rgba(168,85,247,0.15)] disabled:opacity-40";
+  "w-full rounded-xl border border-white/5 bg-zinc-900/80 px-3 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-purple-500/50 focus:shadow-[0_0_20px_rgb(var(--glow)/0.15)] disabled:opacity-40";

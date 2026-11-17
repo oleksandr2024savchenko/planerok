@@ -35,7 +35,7 @@ export function ViewModeSwitch({ value, onChange }: ViewModeSwitchProps) {
             className={cn(
               "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition",
               active
-                ? "bg-purple-500/20 text-purple-100 shadow-[0_0_16px_rgba(168,85,247,0.25)]"
+                ? "bg-purple-500/20 text-purple-100 shadow-[0_0_16px_rgb(var(--glow)/0.25)]"
                 : "text-zinc-400 hover:text-zinc-200",
             )}
           >
