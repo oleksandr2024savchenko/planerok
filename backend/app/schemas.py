@@ -16,6 +16,12 @@ def _to_vienna(value: datetime | None) -> datetime | None:
     return value.astimezone(TIMEZONE)
 
 
+class Assignee(StrEnum):
+    ME = "me"
+    PARTNER = "partner"
+    SHARED = "shared"
+
+
 class TaskScope(StrEnum):
     TODAY = "today"
     UPCOMING = "upcoming"
@@ -34,6 +40,8 @@ class TaskCreate(BaseModel):
     end_time: datetime | None = None
     is_shared: bool = False
     for_partner: bool = False
+    # Who the task is for, seen from the author: me, the partner, or both. Wins over the two flags above.
+    assignee: Assignee | None = None
 
     @field_validator("deadline", "remind_at", "start_time", "end_time")
     @classmethod
@@ -53,6 +61,8 @@ class TaskUpdate(BaseModel):
     end_time: datetime | None = None
     is_completed: bool | None = None
     is_shared: bool | None = None
+    # Hand the task over, seen from whoever edits it: me, the partner, or both.
+    assignee: Assignee | None = None
 
     @field_validator("title", "priority", "is_completed", "is_shared")
     @classmethod
@@ -86,6 +96,7 @@ class TaskRead(BaseModel):
     is_shared: bool = False
     owner_id: int | None = None
     assigned_to_id: int | None = None
+    created_by_id: int | None = None
     created_at: datetime
     read_only: bool = False
     all_day: bool = False

@@ -32,6 +32,8 @@ def task_details(task: Task) -> str:
     if task.category:
         meta.append(f"#{escape(task.category)}")
     meta.append(PRIORITY_LABELS[task.priority])
+    if getattr(task, "is_shared", False):
+        meta.append("⚡️ Спільна")
     lines.append(" · ".join(meta))
     if task.deadline:
         lines.append(f"📅 Дедлайн: {format_dt(task.deadline)}")

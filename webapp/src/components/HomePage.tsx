@@ -7,6 +7,7 @@ import { useAppUpdates } from "@/hooks/useAppUpdates";
 import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS, usersApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { CoupleContext, type Couple } from "@/lib/couple";
 import { SOFT_MOVE } from "@/lib/motion";
 import { setSurfaceColor } from "@/lib/telegram";
 import {
@@ -32,6 +33,8 @@ import { TaskList } from "./TaskList";
 import { useTelegram } from "./TelegramProvider";
 import { ViewModeSwitch, type ViewMode } from "./ViewModeSwitch";
 
+// Demo mode plays the first account, with tasks from and for the partner.
+const MOCK_COUPLE: Couple = { meId: 969740172, partnerName: "Таня" };
 const MOCK_STATUS: CalendarStatus = { connected: true, live: true, last_sync_at: null };
 const OFFLINE_STATUS: CalendarStatus = { connected: false, live: false, last_sync_at: null };
 
@@ -48,15 +51,19 @@ export function HomePage() {
   const [slot, setSlot] = useState<TaskSlot | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
+  const [couple, setCouple] = useState<Couple>(USE_MOCKS ? MOCK_COUPLE : { meId: null, partnerName: "Партнер" });
   useAppUpdates(sheetOpen || feedsOpen);
 
-  const scoped = useMemo(() => tasks.filter((task) => matchesAudience(task, audience)), [tasks, audience]);
+  const scoped = useMemo(
+    () => tasks.filter((task) => matchesAudience(task, audience, couple.meId)),
+    [tasks, audience, couple.meId],
+  );
   const counts = useMemo(() => countByFilter(scoped), [scoped]);
   const visible = useMemo(
     () => sortTasks(scoped.filter((task) => matchesFilter(task, filter))),
     [scoped, filter],
   );
-  const progress = useMemo(() => todayProgress(tasks), [tasks]);
+  const progress = useMemo(() => todayProgress(tasks, couple.meId), [tasks, couple.meId]);
   const ready = (isReady || USE_MOCKS) && !isLoading;
 
   useEffect(() => {
@@ -66,6 +73,7 @@ export function HomePage() {
       .me()
       .then((me) => {
         if (cancelled) return;
+        setCouple({ meId: me.telegram_id, partnerName: me.partner_first_name?.trim() || "Партнер" });
         const pink = me.theme === "pink";
         document.documentElement.dataset.theme = pink ? "pink" : "violet";
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content", pink ? "#fff0f7" : "#12061f");
@@ -93,6 +101,7 @@ export function HomePage() {
   }
 
   return (
+    <CoupleContext.Provider value={couple}>
     <main className={cn("relative mx-auto min-h-dvh px-5 pb-28 pt-6", view === "calendar" ? "max-w-3xl" : "max-w-lg")}>
       <DashboardHeader
         firstName={firstName}
@@ -165,6 +174,7 @@ export function HomePage() {
         onChanged={() => void reload({ silent: true })}
       />
     </main>
+    </CoupleContext.Provider>
   );
 }
 

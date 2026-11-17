@@ -17,6 +17,9 @@ export interface Task {
   sync_token: string | null;
   is_completed: boolean;
   is_shared?: boolean;
+  owner_id?: number | null;
+  assigned_to_id?: number | null;
+  created_by_id?: number | null;
   created_at: string;
   read_only?: boolean;
   all_day?: boolean;
@@ -43,6 +46,8 @@ export interface TaskCreate {
   start_time?: string | null;
   end_time?: string | null;
   is_shared?: boolean;
+  /** Who does it, seen from the sender: me, the partner, or both. */
+  assignee?: "me" | "partner" | "shared";
 }
 
 export interface CalendarStatus {

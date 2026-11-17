@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import scheduler
 from app.config import TIMEZONE
 from app.models import Task, User
-from app.schemas import TaskCreate, TaskScope, TaskUpdate
+from app.schemas import Assignee, TaskCreate, TaskScope, TaskUpdate
 from app.services.reminders import next_fire_at, remind_at_for
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,7 @@ def _visible_to(user_id: int, partner: int | None):
         Task.owner_id == user_id,
         Task.user_id == user_id,
         Task.assigned_to_id == user_id,
+        Task.created_by_id == user_id,
     ]
     if partner is not None:
         clauses.append(and_(Task.is_shared.is_(True), Task.owner_id == partner))
@@ -117,7 +118,7 @@ async def get_task(session: AsyncSession, user_id: int, task_id: int) -> Task | 
     if task is None:
         return None
     partner = await _partner_of(session, user_id)
-    visible = task.owner_id == user_id or task.user_id == user_id or task.assigned_to_id == user_id
+    visible = user_id in (task.owner_id, task.user_id, task.assigned_to_id, task.created_by_id)
     if task.is_shared and partner is not None and task.owner_id == partner:
         visible = True
     return task if visible else None
@@ -133,6 +134,10 @@ async def create_task(
     raw = apply_schedule(data.model_dump())
     is_shared = bool(raw.pop("is_shared", False))
     for_partner = bool(raw.pop("for_partner", False)) and not is_shared
+    assignee = raw.pop("assignee", None)
+    if assignee is not None:
+        is_shared = assignee == Assignee.SHARED
+        for_partner = assignee == Assignee.PARTNER
     owner_id = user_id
     assigned_to_id = None
     if for_partner:
@@ -147,6 +152,7 @@ async def create_task(
         owner_id=owner_id,
         is_shared=is_shared,
         assigned_to_id=assigned_to_id,
+        created_by_id=user_id,
         **raw,
     )
     apply_relative_reminder(
@@ -161,7 +167,30 @@ async def create_task(
     sync_reminder(task)
     if push_google:
         await _mirror_google(session, task)
+    if task.owner_id != user_id or task.is_shared:
+        await scheduler.notify_assigned(task, actor_id=user_id)
     return task
+
+
+async def _apply_assignee(session: AsyncSession, task: Task, assignee: Assignee, actor_id: int | None) -> None:
+    """Re-point a task at me, the partner, or both, as seen by whoever edits it."""
+    actor = actor_id or task.owner_id or task.user_id
+    if assignee == Assignee.SHARED:
+        task.is_shared = True
+        task.assigned_to_id = None
+        if task.owner_id not in (actor, await _partner_of(session, actor)):
+            task.owner_id = task.user_id = actor
+        return
+    task.is_shared = False
+    if assignee == Assignee.ME:
+        task.owner_id = task.user_id = actor
+        task.assigned_to_id = None
+        return
+    partner = await _partner_of(session, actor)
+    if partner is None:
+        logger.warning("assignee=partner ignored: user %s has no partner", actor)
+        return
+    task.owner_id = task.user_id = task.assigned_to_id = partner
 
 
 async def update_task(
@@ -174,9 +203,21 @@ async def update_task(
 ) -> Task:
     was_completed = task.is_completed
     changes = data.model_dump(exclude_unset=True)
+    assignee = changes.pop("assignee", None)
     anchor_before = (task.start_time, task.deadline)
+    owner_before, shared_before = task.owner_id, task.is_shared
+    old_events = await _google_copies(session, task) if push_google else []
     for field, value in changes.items():
         setattr(task, field, value)
+    if assignee is not None:
+        await _apply_assignee(session, task, Assignee(assignee), actor_id)
+    handed_over = task.owner_id != owner_before or task.is_shared != shared_before
+    if handed_over and push_google:
+        # The events live in the old owner's (and partner's) calendars: remove them, the mirror below
+        # writes fresh ones where the task now belongs.
+        await _drop_google_copies(old_events)
+        task.google_event_id = None
+        task.partner_google_event_id = None
     if task.start_time is not None and task.end_time is None:
         task.end_time = task.start_time + timedelta(hours=1)
     apply_relative_reminder(
@@ -192,7 +233,39 @@ async def update_task(
         await _mirror_google(session, task)
     if task.is_shared and not was_completed and task.is_completed:
         await scheduler.notify_shared_closed(task, actor_id=actor_id)
+    elif not was_completed and task.is_completed:
+        await scheduler.notify_done_for_author(task, actor_id=actor_id)
+    if handed_over and actor_id is not None and task.owner_id != actor_id and not task.is_shared:
+        await scheduler.notify_assigned(task, actor_id=actor_id)
     return task
+
+
+async def _google_copies(session: AsyncSession, task: Task) -> list[tuple[str, str | None]]:
+    """(event id, calendar) pairs this task currently has in Google."""
+    from app.services.users import calendar_id_for
+
+    copies: list[tuple[str, str | None]] = []
+    owner = task.owner_id or task.user_id
+    if task.google_event_id:
+        copies.append((task.google_event_id, await calendar_id_for(session, owner)))
+    if task.partner_google_event_id:
+        partner = await _partner_of(session, owner)
+        copies.append((task.partner_google_event_id, await calendar_id_for(session, partner) if partner else None))
+    return copies
+
+
+async def _drop_google_copies(copies: list[tuple[str, str | None]]) -> None:
+    if not copies:
+        return
+    from app.services.google_calendar import delete_event, is_configured
+
+    if not is_configured():
+        return
+    for event_id, calendar_id in copies:
+        try:
+            await delete_event(event_id, calendar_id=calendar_id)
+        except Exception:
+            logger.exception("Could not remove Google event %s after a hand-over", event_id)
 
 
 async def delete_task(session: AsyncSession, task: Task, *, push_google: bool = True) -> None:

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from html import escape
 
 from aiogram import Bot
 from apscheduler.jobstores.base import JobLookupError
@@ -147,6 +148,47 @@ async def _delete_messages(messages: dict) -> None:
         except Exception:
             # Already deleted by hand, too old, or edited into a status line: keep going.
             logger.debug("Could not delete nag message %s in %s", message_id, chat_id)
+
+
+async def _first_name(session, telegram_id: int | None) -> str:
+    from app.models import User
+
+    user = await session.get(User, telegram_id) if telegram_id else None
+    return (user.first_name if user and user.first_name else None) or "Партнер"
+
+
+async def notify_assigned(task: Task, actor_id: int | None) -> None:
+    """Tell the other person that a task was written for them (or for both of you)."""
+    if _bot is None or actor_id is None:
+        return
+    from app.bot.texts import task_details
+    from app.services.users import partner_id
+
+    async with session_factory() as session:
+        other = await partner_id(session, actor_id)
+        author = await _first_name(session, actor_id)
+    if other is None or other == actor_id:
+        return
+    if not task.is_shared and other not in (task.owner_id, task.assigned_to_id):
+        return
+    header = f"⚡️ <b>{escape(author)}</b> додає спільну задачу" if task.is_shared else f"📌 Задача для тебе від <b>{escape(author)}</b>"
+    try:
+        await _bot.send_message(chat_id=other, text=f"{header}\n\n{task_details(task)}")
+    except Exception:
+        logger.exception("Could not tell %s about task %s", other, task.id)
+
+
+async def notify_done_for_author(task: Task, actor_id: int | None) -> None:
+    """A task given to the partner was done: let its author know."""
+    author = task.created_by_id
+    if _bot is None or author is None or actor_id is None or author == actor_id:
+        return
+    async with session_factory() as session:
+        doer = await _first_name(session, actor_id)
+    try:
+        await _bot.send_message(chat_id=author, text=f"✅ <b>{escape(doer)}</b>: «{escape(task.title)}» — виконано")
+    except Exception:
+        logger.exception("Could not tell %s that task %s is done", author, task.id)
 
 
 async def notify_shared_closed(task: Task, actor_id: int | None) -> None:

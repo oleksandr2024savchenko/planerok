@@ -173,7 +173,8 @@ def build_system_prompt(now: datetime | None = None) -> str:
         "remind_before_minutes = кількість хвилин (година=60, день=1440, тиждень=10080), remind_at = null.\n"
         "- Кілька справ в одному повідомленні → кілька елементів у tasks.\n"
         "- is_shared=true, якщо звучить «нам», «разом», «спільне», «ми», «обом».\n"
-        "- for_partner=true, якщо справа лише для партнерки («їй», «для неї», «дівчині»), і тоді is_shared=false.\n"
+        "- for_partner=true, якщо справа лише для партнера чи партнерки («їй», «йому», «для неї», «для нього», "
+        "«дівчині», «хлопцю», «коханій», «коханому», «нехай він/вона…»), і тоді is_shared=false.\n"
         "- Якщо завдань немає, поверни порожній список tasks.\n"
         "- Відповідь — лише JSON {\"tasks\":[{\"title\",\"description\",\"category\",\"priority\",\"deadline\",\"remind_at\",\"remind_before_minutes\",\"is_shared\",\"for_partner\"}]}."
     )

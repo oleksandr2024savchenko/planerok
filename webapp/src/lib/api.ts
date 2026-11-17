@@ -65,6 +65,8 @@ export interface Me {
   telegram_id: number;
   theme: string;
   partner_telegram_id: number | null;
+  first_name?: string | null;
+  partner_first_name?: string | null;
 }
 
 export const usersApi = {

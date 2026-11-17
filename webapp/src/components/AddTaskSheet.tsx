@@ -1,12 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Calendar, Clock, Flag, X } from "lucide-react";
+import { Bell, Calendar, Clock, Flag, Users, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { ChoiceChip, SegmentedControl } from "@/components/SegmentedControl";
 import { cn } from "@/lib/cn";
 import { clockInput, dateKey, shiftTime, todayKey, viennaToDate } from "@/lib/date";
+import { assigneeOf, useCouple, type Assignee } from "@/lib/couple";
 import { SOFT_MOVE } from "@/lib/motion";
 import { reminderAnchor, remindAtFor } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
@@ -46,7 +47,9 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [shared, setShared] = useState(false);
+  const { meId, partnerName } = useCouple();
+  const [assignee, setAssignee] = useState<Assignee>("me");
+  const [initialAssignee, setInitialAssignee] = useState<Assignee>("me");
   /** Minutes before the event; `undefined` until picked, so new tasks follow the start-time default. */
   const [reminder, setReminder] = useState<number | null | undefined>(undefined);
   const [reminderKey, setReminderKey] = useState(0);
@@ -65,7 +68,9 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
     setDate(task && when ? dateKey(when) : (slot?.date ?? todayKey()));
     setStartTime(initialStart);
     setEndTime(task?.end_time ? clockInput(task.end_time) : initialStart ? shiftTime(initialStart, 60) : "");
-    setShared(Boolean(task?.is_shared));
+    const startAssignee = task ? assigneeOf(task, meId) : "me";
+    setAssignee(startAssignee);
+    setInitialAssignee(startAssignee);
     setReminder(task ? initialOffset(task) : undefined);
     setReminderKey((current) => current + 1);
     setTitle(task?.title ?? "");
@@ -132,7 +137,9 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
         deadline: schedule.deadline,
         start_time: schedule.start,
         end_time: schedule.end,
-        is_shared: shared,
+        is_shared: assignee === "shared",
+        // Only a real hand-over is sent on edit, so a save never moves a task by accident.
+        ...(!task || assignee !== initialAssignee ? { assignee } : {}),
         remind_before_minutes: offset,
         // With an offset the server derives remind_at and keeps it moving with the event.
         ...(offset === null ? { remind_at: null } : {}),
@@ -365,39 +372,34 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
                 </fieldset>
               )}
 
-              <button
-                type="button"
-                aria-pressed={shared}
-                onClick={() => {
-                  haptic.selection();
-                  setShared((current) => !current);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm",
-                  shared
-                    ? "border-fuchsia-300/80 bg-fuchsia-500/20 text-white shadow-[0_0_18px_rgba(255,45,214,0.35)]"
-                    : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20",
-                )}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block font-medium">Спільне завдання</span>
-                  <span className={cn("mt-0.5 block text-xs leading-snug", shared ? "text-fuchsia-100/80" : "text-zinc-500")}>
-                    Побачите обоє, і в обох календарях
-                  </span>
-                </span>
-                <span
-                  className={cn(
-                    "relative h-7 w-12 shrink-0 rounded-full",
-                    shared ? "bg-fuchsia-500" : "bg-zinc-700",
-                  )}
-                >
-                  <motion.span
-                    className="absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
-                    animate={{ x: shared ? 20 : 0 }}
-                    transition={SOFT_MOVE}
-                  />
-                </span>
-              </button>
+              <fieldset className="min-w-0 space-y-2">
+                <legend className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
+                  <Users className="size-3 shrink-0" />
+                  Хто робить
+                </legend>
+                <SegmentedControl
+                  fullWidth
+                  anchored
+                  layoutId="task-assignee"
+                  value={assignee}
+                  options={[
+                    { id: "me", label: "Я" },
+                    { id: "partner", label: partnerName },
+                    { id: "shared", label: "Разом ⚡️" },
+                  ]}
+                  onChange={(next) => {
+                    haptic.selection();
+                    setAssignee(next);
+                  }}
+                />
+                <p className="text-xs leading-snug text-zinc-500">
+                  {assignee === "partner"
+                    ? `${partnerName} отримає задачу й нагадування, а ти дізнаєшся, коли буде виконано.`
+                    : assignee === "shared"
+                      ? "Побачите обоє, і в обох календарях."
+                      : "Лише для тебе."}
+                </p>
+              </fieldset>
 
               {error && <p className="text-sm text-rose-400">{error}</p>}
 

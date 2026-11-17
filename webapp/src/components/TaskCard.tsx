@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Calendar, Check } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { assigneeOf, isFromPartner, useCouple } from "@/lib/couple";
 import { formatDay, formatTime } from "@/lib/date";
 import { isOverdue } from "@/lib/filters";
 import { shortOffset } from "@/lib/reminders";
@@ -19,6 +20,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, onToggle, onOpen }: TaskCardProps) {
+  const { meId, partnerName } = useCouple();
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
   const when = task.start_time ?? task.deadline;
@@ -76,6 +78,16 @@ export function TaskCard({ task, onToggle, onOpen }: TaskCardProps) {
             {task.is_shared && (
               <span className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 font-medium text-fuchsia-200 shadow-[0_0_10px_rgba(255,45,214,0.35)]">
                 Спільне
+              </span>
+            )}
+            {assigneeOf(task, meId) === "partner" && (
+              <span className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 font-medium text-fuchsia-200">
+                Робить: {partnerName}
+              </span>
+            )}
+            {isFromPartner(task, meId) && (
+              <span className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 font-medium text-fuchsia-200">
+                Від: {partnerName}
               </span>
             )}
             {task.read_only && (

@@ -125,8 +125,44 @@ export function createMockTasks(): Task[] {
       is_completed: false,
       created_at: created,
     },
+    {
+      id: 8,
+      title: "Забрати посилку на пошті",
+      description: "Номер ТТН у чаті",
+      category: "особисте",
+      priority: "medium",
+      ...block(0, "18:00"),
+      remind_at: at(0, "17:30"),
+      remind_before_minutes: 30,
+      google_event_id: null,
+      sync_token: null,
+      is_completed: false,
+      owner_id: MOCK_ME,
+      created_by_id: MOCK_PARTNER,
+      created_at: created,
+    },
+    {
+      id: 9,
+      title: "Записатися на манікюр",
+      description: null,
+      category: "особисте",
+      priority: "medium",
+      ...block(1, "12:00"),
+      remind_at: at(1, "11:00"),
+      remind_before_minutes: 60,
+      google_event_id: null,
+      sync_token: null,
+      is_completed: false,
+      owner_id: MOCK_PARTNER,
+      assigned_to_id: MOCK_PARTNER,
+      created_by_id: MOCK_ME,
+      created_at: created,
+    },
   ];
 }
+
+const MOCK_ME = 969740172;
+const MOCK_PARTNER = 729424163;
 
 let mockId = 1000;
 
@@ -145,6 +181,10 @@ export function buildMockTask(data: TaskCreate): Task {
         data.remind_before_minutes,
       ),
     remind_before_minutes: data.remind_before_minutes ?? null,
+    is_shared: data.assignee ? data.assignee === "shared" : Boolean(data.is_shared),
+    owner_id: data.assignee === "partner" ? MOCK_PARTNER : MOCK_ME,
+    assigned_to_id: data.assignee === "partner" ? MOCK_PARTNER : null,
+    created_by_id: MOCK_ME,
     start_time: data.start_time ?? null,
     end_time: data.end_time ?? null,
     google_event_id: null,

@@ -1,3 +1,4 @@
+import { assigneeOf } from "./couple";
 import { dateKey, formatDayKey, todayKey } from "./date";
 import { CATEGORIES, type Category, type Priority, type Task } from "./types";
 
@@ -10,9 +11,10 @@ export const AUDIENCES: { id: AudienceId; label: string }[] = [
   { id: "all", label: "Усі" },
 ];
 
-export function matchesAudience(task: Task, audience: AudienceId): boolean {
+/** «Мої» are tasks I do myself; ones I gave to the partner show only under «Усі». */
+export function matchesAudience(task: Task, audience: AudienceId, meId: number | null = null): boolean {
   if (audience === "shared") return Boolean(task.is_shared);
-  if (audience === "mine") return !task.is_shared;
+  if (audience === "mine") return assigneeOf(task, meId) === "me";
   return true;
 }
 
@@ -71,9 +73,10 @@ export function sortTasks(tasks: Task[]): Task[] {
   });
 }
 
-export function todayProgress(tasks: Task[]): { done: number; total: number } {
+/** My day: tasks I gave to the partner are theirs to finish, so they do not count here. */
+export function todayProgress(tasks: Task[], meId: number | null = null): { done: number; total: number } {
   const today = todayKey();
-  const relevant = tasks.filter((task) => isDueToday(task, today));
+  const relevant = tasks.filter((task) => isDueToday(task, today) && assigneeOf(task, meId) !== "partner");
   return { done: relevant.filter((task) => task.is_completed).length, total: relevant.length };
 }
 

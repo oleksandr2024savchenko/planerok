@@ -61,6 +61,17 @@ async def ensure_allowed_users(session: AsyncSession) -> list[User]:
     return users
 
 
+async def remember_name(session: AsyncSession, telegram_id: int, first_name: str | None) -> None:
+    """Keep the Telegram first name fresh, for labels like «Для Тані»."""
+    name = (first_name or "").strip()[:64]
+    if not name:
+        return
+    user = await session.get(User, telegram_id)
+    if user is not None and user.first_name != name:
+        user.first_name = name
+        await session.commit()
+
+
 async def get_user(session: AsyncSession, telegram_id: int) -> User | None:
     return await session.get(User, telegram_id)
 

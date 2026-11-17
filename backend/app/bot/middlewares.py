@@ -45,4 +45,13 @@ class DbSessionMiddleware(BaseMiddleware):
     ) -> Any:
         async with self.session_factory() as session:
             data["session"] = session
+            user = data.get("event_from_user")
+            if user is not None:
+                from app.services.users import remember_name
+
+                try:
+                    await remember_name(session, user.id, user.first_name)
+                except Exception:
+                    # A name is cosmetic; never let it break the message.
+                    await session.rollback()
             return await handler(event, data)

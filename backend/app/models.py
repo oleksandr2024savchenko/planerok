@@ -25,6 +25,8 @@ class User(Base):
     afternoon_time: Mapped[time] = mapped_column(Time, default=time(14, 0), server_default="14:00:00")
     evening_time: Mapped[time] = mapped_column(Time, default=time(20, 0), server_default="20:00:00")
     theme_accent: Mapped[str] = mapped_column(String(32), default="violet", server_default="violet")
+    # Telegram first name, refreshed from the Mini App and bot, for labels like «Для Тані».
+    first_name: Mapped[str | None] = mapped_column(String(64))
 
 
 class Task(Base):
@@ -35,6 +37,8 @@ class Task(Base):
     owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.telegram_id"), index=True)
     is_shared: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     assigned_to_id: Mapped[int | None] = mapped_column(BigInteger)
+    # Who wrote the task. Lets the author keep seeing a task given to the partner.
+    created_by_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(String(64), index=True)
