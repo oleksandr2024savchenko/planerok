@@ -72,6 +72,21 @@ async def remember_name(session: AsyncSession, telegram_id: int, first_name: str
         await session.commit()
 
 
+async def fill_names_from_telegram(session: AsyncSession, bot, users: list[User]) -> None:
+    """Ask Telegram for first names nobody has seen yet, so labels say «Саша», not «Партнер»."""
+    for user in users:
+        if user.first_name:
+            continue
+        try:
+            chat = await bot.get_chat(user.telegram_id)
+        except Exception:
+            logger.warning("Could not read the Telegram name of %s", user.telegram_id)
+            continue
+        if chat.first_name:
+            user.first_name = chat.first_name.strip()[:64]
+    await session.commit()
+
+
 async def get_user(session: AsyncSession, telegram_id: int) -> User | None:
     return await session.get(User, telegram_id)
 

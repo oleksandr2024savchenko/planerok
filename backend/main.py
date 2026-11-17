@@ -32,10 +32,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     scheduler.start()
     from app.db import session_factory
     from app.scheduler import schedule_digests
-    from app.services.users import ensure_allowed_users
+    from app.services.users import ensure_allowed_users, fill_names_from_telegram
 
     async with session_factory() as session:
         accounts = await ensure_allowed_users(session)
+        await fill_names_from_telegram(session, bot, accounts)
         schedule_digests(accounts)
 
     await bot.delete_webhook(drop_pending_updates=False)

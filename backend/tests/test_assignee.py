@@ -85,3 +85,28 @@ def test_schemas_accept_assignee() -> None:
     with pytest.raises(ValueError):
         TaskCreate(title="x", assignee="кіт")
     assert "created_by_id" in TaskRead.model_fields
+
+
+def test_names_are_filled_from_telegram_once() -> None:
+    from types import SimpleNamespace
+
+    from app.services.users import fill_names_from_telegram
+
+    asked: list[int] = []
+
+    class _Bot:
+        async def get_chat(self, chat_id: int):
+            asked.append(chat_id)
+            if chat_id == ME:
+                return SimpleNamespace(first_name="Саша")
+            raise RuntimeError("chat not found")
+
+    class _Commit:
+        async def commit(self) -> None:
+            return None
+
+    me, her, known = User(telegram_id=ME), User(telegram_id=HER), User(telegram_id=1, first_name="Вже є")
+    asyncio.run(fill_names_from_telegram(_Commit(), _Bot(), [me, her, known]))
+    assert me.first_name == "Саша"
+    assert her.first_name is None  # Telegram refused: stay unnamed, no crash
+    assert asked == [ME, HER]  # a known name is not asked again
