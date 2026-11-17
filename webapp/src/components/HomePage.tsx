@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { countByFilter, matchesFilter, sortTasks, todayProgress, type FilterId } from "@/lib/filters";
-import type { CalendarStatus } from "@/lib/types";
+import type { CalendarStatus, Task } from "@/lib/types";
 
 import { AddTaskSheet, type TaskSlot } from "./AddTaskSheet";
 import { CalendarBoard } from "./CalendarBoard";
@@ -14,6 +14,7 @@ import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
 import { FilterPills } from "./FilterPills";
+import { ReminderSheet } from "./ReminderSheet";
 import { SyncBadge } from "./SyncBadge";
 import { TaskList } from "./TaskList";
 import { useTelegram } from "./TelegramProvider";
@@ -24,13 +25,15 @@ const OFFLINE_STATUS: CalendarStatus = { connected: false, live: false, last_syn
 
 export function HomePage() {
   const { firstName, isReady } = useTelegram();
-  const { tasks, isLoading, error, reload, createTask, toggleTask } = useTasks({
+  const { tasks, isLoading, error, reload, createTask, updateTask, toggleTask } = useTasks({
     enabled: isReady || USE_MOCKS,
   });
   const [filter, setFilter] = useState<FilterId>("today");
   const [view, setView] = useState<ViewMode>("list");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [slot, setSlot] = useState<TaskSlot | null>(null);
+  const [reminderTask, setReminderTask] = useState<Task | null>(null);
+  const closeReminder = useCallback(() => setReminderTask(null), []);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
 
   const counts = useMemo(() => countByFilter(tasks), [tasks]);
@@ -82,11 +85,15 @@ export function HomePage() {
         {!ready ? (
           <TaskSkeleton />
         ) : view === "calendar" ? (
-          <CalendarBoard tasks={tasks} onSlot={(date, time) => openSheet({ date, time })} />
+          <CalendarBoard
+            tasks={tasks}
+            onSlot={(date, time) => openSheet({ date, time })}
+            onTask={setReminderTask}
+          />
         ) : visible.length === 0 ? (
           <EmptyState filter={filter} onAdd={() => openSheet(null)} />
         ) : (
-          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} />
+          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} onReminder={setReminderTask} />
         )}
       </div>
 
@@ -94,7 +101,8 @@ export function HomePage() {
         <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
       )}
 
-      <Fab hidden={sheetOpen} onClick={() => openSheet(null)} />
+      <Fab hidden={sheetOpen || reminderTask !== null} onClick={() => openSheet(null)} />
+      <ReminderSheet task={reminderTask} onClose={closeReminder} onSave={updateTask} />
       <AddTaskSheet
         open={sheetOpen}
         slot={slot}

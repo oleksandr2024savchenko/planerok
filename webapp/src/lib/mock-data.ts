@@ -1,4 +1,5 @@
 import { addDays, todayKey, viennaToDate } from "./date";
+import { remindAtFor } from "./reminders";
 import type { Task, TaskCreate } from "./types";
 
 function at(dayOffset: number, time: string): string {
@@ -23,6 +24,7 @@ export function createMockTasks(): Task[] {
       priority: "high",
       ...block(0, "15:00"),
       remind_at: at(0, "14:30"),
+      remind_before_minutes: 30,
       google_event_id: "gcal-demo-1",
       sync_token: "demo-sync",
       is_completed: false,
@@ -36,6 +38,7 @@ export function createMockTasks(): Task[] {
       priority: "medium",
       ...block(0, "07:30"),
       remind_at: null,
+      remind_before_minutes: null,
       google_event_id: null,
       sync_token: null,
       is_completed: true,
@@ -49,6 +52,7 @@ export function createMockTasks(): Task[] {
       priority: "medium",
       ...block(0, "20:00"),
       remind_at: at(0, "19:45"),
+      remind_before_minutes: 15,
       google_event_id: "gcal-demo-3",
       sync_token: "demo-sync",
       is_completed: false,
@@ -62,6 +66,7 @@ export function createMockTasks(): Task[] {
       priority: "low",
       ...block(0, "12:00"),
       remind_at: null,
+      remind_before_minutes: null,
       google_event_id: null,
       sync_token: null,
       is_completed: true,
@@ -75,6 +80,7 @@ export function createMockTasks(): Task[] {
       priority: "medium",
       ...block(1, "18:30"),
       remind_at: at(1, "18:00"),
+      remind_before_minutes: 30,
       google_event_id: "gcal-demo-5",
       sync_token: "demo-sync",
       is_completed: false,
@@ -87,7 +93,8 @@ export function createMockTasks(): Task[] {
       category: "робота",
       priority: "high",
       ...block(3, "10:00"),
-      remind_at: at(3, "09:00"),
+      remind_at: at(2, "10:00"),
+      remind_before_minutes: 24 * 60,
       google_event_id: "gcal-demo-6",
       sync_token: "demo-sync",
       is_completed: false,
@@ -101,6 +108,7 @@ export function createMockTasks(): Task[] {
       priority: "low",
       ...block(5, "21:00"),
       remind_at: null,
+      remind_before_minutes: null,
       google_event_id: null,
       sync_token: null,
       is_completed: false,
@@ -119,7 +127,13 @@ export function buildMockTask(data: TaskCreate): Task {
     category: data.category ?? null,
     priority: data.priority ?? "medium",
     deadline: data.deadline ?? data.end_time ?? null,
-    remind_at: data.remind_at ?? null,
+    remind_at:
+      data.remind_at ??
+      remindAtFor(
+        { start_time: data.start_time ?? null, deadline: data.deadline ?? data.end_time ?? null },
+        data.remind_before_minutes,
+      ),
+    remind_before_minutes: data.remind_before_minutes ?? null,
     start_time: data.start_time ?? null,
     end_time: data.end_time ?? null,
     google_event_id: null,

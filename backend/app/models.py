@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, DateTime, Enum, String, Text, false, func
+from sqlalchemy import BigInteger, DateTime, Enum, Integer, String, Text, false, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -30,6 +30,8 @@ class Task(Base):
     )
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     remind_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Relative reminder: minutes before the event. When set, remind_at follows the event when it moves.
+    remind_before_minutes: Mapped[int | None] = mapped_column(Integer)
     start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     google_event_id: Mapped[str | None] = mapped_column(String(255), unique=True)

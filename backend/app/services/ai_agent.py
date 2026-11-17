@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.config import TIMEZONE, get_settings
 from app.models import Priority
 from app.schemas import TaskCreate, _to_vienna
+from app.services.reminders import MAX_OFFSET_MINUTES, remind_at_for
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,23 @@ class ParsedTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: datetime | None = Field(default=None, description="Event/due time as ISO 8601.")
     remind_at: datetime | None = Field(default=None, description="Reminder time as ISO 8601.")
+    remind_before_minutes: int | None = Field(
+        default=None,
+        ge=0,
+        le=MAX_OFFSET_MINUTES,
+        description="Reminder offset before the event in minutes, e.g. 1440 for «за день до».",
+    )
+
+    @field_validator("remind_before_minutes", mode="before")
+    @classmethod
+    def _blank_offset(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        if isinstance(value, (int, float)):
+            if value < 0:
+                return None
+            return min(int(value), MAX_OFFSET_MINUTES)
+        return value
 
     @field_validator("category", mode="before")
     @classmethod
@@ -113,6 +131,10 @@ class _GeminiTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
     remind_at: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
+    remind_before_minutes: int | None = Field(
+        default=None,
+        description="Minutes before the event to remind (1440 = one day before), or null.",
+    )
 
 
 class _GeminiExtraction(BaseModel):
@@ -136,9 +158,11 @@ def build_system_prompt(now: datetime | None = None) -> str:
         "- Відносні дати («завтра», «через 2 години», «у п'ятницю о 18:00») рахуй від поточного часу вище.\n"
         "- Якщо названо час події, але не час нагадування: remind_at = за 15 хвилин до deadline.\n"
         "- Якщо названо лише час нагадування — запиши його в remind_at і deadline.\n"
+        "- Якщо нагадування задано відносно події («нагадай за день», «за 2 години до», «за тиждень») — "
+        "remind_before_minutes = кількість хвилин (година=60, день=1440, тиждень=10080), remind_at = null.\n"
         "- Кілька справ в одному повідомленні → кілька елементів у tasks.\n"
         "- Якщо завдань немає, поверни порожній список tasks.\n"
-        '- Відповідь — лише JSON {"tasks":[{"title","description","category","priority","deadline","remind_at"}]}.'
+        '- Відповідь — лише JSON {"tasks":[{"title","description","category","priority","deadline","remind_at","remind_before_minutes"}]}.'
     )
 
 
@@ -147,10 +171,16 @@ def finalize_task(task: ParsedTask, now: datetime | None = None) -> ParsedTask:
     now = (now or datetime.now(TIMEZONE)).astimezone(TIMEZONE)
     deadline = _to_vienna(task.deadline)
     remind_at = _to_vienna(task.remind_at)
-    if deadline is not None and remind_at is None:
+    offset = task.remind_before_minutes
+    if offset is not None and deadline is None:
+        offset = None
+    if offset is not None:
+        # A relative reminder wins over any absolute time the model echoed back.
+        remind_at = remind_at_for(None, deadline, offset)
+    elif deadline is not None and remind_at is None:
         if deadline.time() not in (_END_OF_DAY, time(0, 0)):
             remind_at = deadline - timedelta(minutes=15)
-    return task.model_copy(update={"deadline": deadline, "remind_at": remind_at})
+    return task.model_copy(update={"deadline": deadline, "remind_at": remind_at, "remind_before_minutes": offset})
 
 
 def to_task_create(task: ParsedTask) -> TaskCreate:
@@ -160,7 +190,8 @@ def to_task_create(task: ParsedTask) -> TaskCreate:
         category=CATEGORY_SLUGS[task.category],
         priority=Priority(task.priority),
         deadline=task.deadline,
-        remind_at=task.remind_at,
+        remind_at=None if task.remind_before_minutes is not None else task.remind_at,
+        remind_before_minutes=task.remind_before_minutes,
     )
 
 

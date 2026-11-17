@@ -18,6 +18,14 @@ class ReminderCallback(CallbackData, prefix="rem"):
 class TaskAction(StrEnum):
     EDIT_TIME = "time"
     DELETE = "del"
+    REMIND = "rem"
+
+
+class ReminderOffsetCallback(CallbackData, prefix="off"):
+    """minutes = -1 clears the reminder, -2 asks for a custom interval, -3 goes back."""
+
+    task_id: int
+    minutes: int
 
 
 class TaskActionCallback(CallbackData, prefix="task"):

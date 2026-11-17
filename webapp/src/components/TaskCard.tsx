@@ -6,15 +6,17 @@ import { Bell, Calendar, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDay, formatTime } from "@/lib/date";
 import { isOverdue } from "@/lib/filters";
+import { shortOffset } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 import type { Task } from "@/lib/types";
 
 interface TaskCardProps {
   task: Task;
   onToggle: (id: number) => void;
+  onReminder?: (task: Task) => void;
 }
 
-export function TaskCard({ task, onToggle }: TaskCardProps) {
+export function TaskCard({ task, onToggle, onReminder }: TaskCardProps) {
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
   const when = task.start_time ?? task.deadline;
@@ -72,17 +74,46 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
                 {task.start_time && task.end_time ? `–${formatTime(task.end_time)}` : ""}
               </span>
             )}
-            {task.remind_at && !task.is_completed && (
-              <span className="inline-flex items-center gap-1">
+            {!task.is_completed && when && onReminder ? (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic.selection();
+                  onReminder(task);
+                }}
+                aria-label="Налаштувати нагадування"
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 transition",
+                  task.remind_at
+                    ? "border-purple-500/20 text-purple-300/90 hover:border-purple-500/50"
+                    : "border-dashed border-white/10 text-zinc-500 hover:border-purple-500/40 hover:text-zinc-300",
+                )}
+              >
                 <Bell className="size-3" />
-                {formatTime(task.remind_at)}
-              </span>
+                {reminderLabel(task)}
+              </button>
+            ) : (
+              task.remind_at &&
+              !task.is_completed && (
+                <span className="inline-flex items-center gap-1">
+                  <Bell className="size-3" />
+                  {formatTime(task.remind_at)}
+                </span>
+              )
             )}
           </div>
         </div>
       </div>
     </article>
   );
+}
+
+function reminderLabel(task: Task): string {
+  if (!task.remind_at) return "Нагадати";
+  if (task.remind_before_minutes !== null) {
+    return task.remind_before_minutes === 0 ? "у момент" : `за ${shortOffset(task.remind_before_minutes).toLowerCase()}`;
+  }
+  return formatTime(task.remind_at);
 }
 
 function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {

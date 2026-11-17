@@ -9,6 +9,7 @@ from app import scheduler
 from app.config import TIMEZONE
 from app.models import Task
 from app.schemas import TaskCreate, TaskScope, TaskUpdate
+from app.services.reminders import remind_at_for
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,18 @@ def sync_reminder(task: Task) -> None:
         scheduler.cancel_reminder(task.id)
     else:
         scheduler.schedule_reminder(task.id, task.remind_at)
+
+
+def apply_relative_reminder(task: Task, *, explicit_remind_at: bool, offset_changed: bool, anchor_changed: bool) -> None:
+    """Keep remind_at at `remind_before_minutes` before the event.
+
+    An explicit remind_at (snooze, "remind me at 10:00") wins for this write; the offset stays
+    and re-applies the next time the event moves.
+    """
+    if task.remind_before_minutes is None or explicit_remind_at:
+        return
+    if offset_changed or anchor_changed:
+        task.remind_at = remind_at_for(task.start_time, task.deadline, task.remind_before_minutes)
 
 
 def _on_day(column, start: datetime, end: datetime):
@@ -95,7 +108,14 @@ async def create_task(
     *,
     push_google: bool = True,
 ) -> Task:
-    task = Task(user_id=user_id, **apply_schedule(data.model_dump()))
+    payload = apply_schedule(data.model_dump())
+    task = Task(user_id=user_id, **payload)
+    apply_relative_reminder(
+        task,
+        explicit_remind_at=payload.get("remind_at") is not None,
+        offset_changed=True,
+        anchor_changed=True,
+    )
     session.add(task)
     await session.commit()
     await session.refresh(task)
@@ -112,10 +132,18 @@ async def update_task(
     *,
     push_google: bool = True,
 ) -> Task:
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    anchor_before = (task.start_time, task.deadline)
+    for field, value in changes.items():
         setattr(task, field, value)
     if task.start_time is not None and task.end_time is None:
         task.end_time = task.start_time + timedelta(hours=1)
+    apply_relative_reminder(
+        task,
+        explicit_remind_at="remind_at" in changes,
+        offset_changed="remind_before_minutes" in changes,
+        anchor_changed=(task.start_time, task.deadline) != anchor_before,
+    )
     await session.commit()
     await session.refresh(task)
     sync_reminder(task)

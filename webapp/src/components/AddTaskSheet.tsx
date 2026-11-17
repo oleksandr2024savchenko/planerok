@@ -1,13 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Calendar, Flag, X } from "lucide-react";
+import { Bell, Calendar, Clock, Flag, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { cn } from "@/lib/cn";
 import { todayKey, viennaToDate } from "@/lib/date";
+import { remindAtFor } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 import { CATEGORIES, type Category, type Priority, type TaskCreate } from "@/lib/types";
+
+import { ReminderPicker } from "./ReminderPicker";
 
 const PRIORITIES: { id: Priority; label: string }[] = [
   { id: "low", label: "Низький" },
@@ -36,6 +39,9 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
   const [priority, setPriority] = useState<Priority>("medium");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  /** Minutes before the event; `undefined` until the user picks, so the default follows the time field. */
+  const [reminder, setReminder] = useState<number | null | undefined>(undefined);
+  const [openCount, setOpenCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,6 +53,8 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
     setPriority("medium");
     setDate(slot?.date ?? todayKey());
     setTime(slot?.time ?? "");
+    setReminder(undefined);
+    setOpenCount((count) => count + 1);
     setError(null);
     const frame = requestAnimationFrame(() => titleRef.current?.focus());
     return () => cancelAnimationFrame(frame);
@@ -66,6 +74,14 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
     };
   }, [open, onClose]);
 
+  // Timed events default to "at the start", date-only tasks to no reminder (the old behaviour).
+  const effectiveReminder = reminder === undefined ? (time ? 0 : null) : reminder;
+  const schedule = scheduleFor(date, time);
+  const reminderPreview = remindAtFor(
+    { start_time: schedule.start, deadline: schedule.deadline },
+    effectiveReminder,
+  );
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const trimmed = title.trim();
@@ -78,17 +94,17 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
     setSubmitting(true);
     setError(null);
     try {
-      const start = date && time ? viennaToDate(date, time).toISOString() : null;
-      const end = start ? new Date(new Date(start).getTime() + 3_600_000).toISOString() : null;
+      const hasDate = Boolean(date);
       await onCreate({
         title: trimmed,
         description: description.trim() || null,
         category,
         priority,
-        deadline: end ?? (date ? viennaToDate(date, "23:59").toISOString() : null),
-        remind_at: start,
-        start_time: start,
-        end_time: end,
+        deadline: schedule.deadline,
+        remind_at: null,
+        remind_before_minutes: hasDate ? effectiveReminder : null,
+        start_time: schedule.start,
+        end_time: schedule.end,
       });
       haptic.notify("success");
       onClose();
@@ -233,8 +249,8 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
                 </label>
                 <label className="space-y-1.5">
                   <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    <Bell className="size-3" />
-                    Нагадування
+                    <Clock className="size-3" />
+                    Час
                   </span>
                   <input
                     type="time"
@@ -245,6 +261,22 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
                   />
                 </label>
               </div>
+
+              {date && (
+                <fieldset className="space-y-2">
+                  <legend className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
+                    <Bell className="size-3" />
+                    Нагадати до події
+                  </legend>
+                  <ReminderPicker
+                    key={openCount}
+                    value={effectiveReminder}
+                    onChange={setReminder}
+                    preview={reminderPreview}
+                    dateOnly={!time}
+                  />
+                </fieldset>
+              )}
 
               {error && <p className="text-sm text-rose-400">{error}</p>}
 
@@ -261,6 +293,13 @@ export function AddTaskSheet({ open, slot = null, onClose, onCreate }: AddTaskSh
       )}
     </AnimatePresence>
   );
+}
+
+function scheduleFor(date: string, time: string) {
+  const start = date && time ? viennaToDate(date, time).toISOString() : null;
+  const end = start ? new Date(new Date(start).getTime() + 3_600_000).toISOString() : null;
+  const deadline = end ?? (date ? viennaToDate(date, "23:59").toISOString() : null);
+  return { start, end, deadline };
 }
 
 const fieldClass =

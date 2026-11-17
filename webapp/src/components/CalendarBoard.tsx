@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
@@ -28,6 +28,7 @@ type Zoom = "day" | "week";
 interface CalendarBoardProps {
   tasks: Task[];
   onSlot: (date: string, time: string) => void;
+  onTask?: (task: Task) => void;
 }
 
 interface Block {
@@ -36,7 +37,7 @@ interface Block {
   endMin: number;
 }
 
-export function CalendarBoard({ tasks, onSlot }: CalendarBoardProps) {
+export function CalendarBoard({ tasks, onSlot, onTask }: CalendarBoardProps) {
   const [zoom, setZoom] = useState<Zoom>("day");
   const [anchor, setAnchor] = useState(() => todayKey());
   const [now, setNow] = useState(() => new Date());
@@ -150,6 +151,7 @@ export function CalendarBoard({ tasks, onSlot }: CalendarBoardProps) {
                 showNow={showNow && day === today}
                 nowTop={(nowMinutes / 60) * HOUR_PX}
                 onSlot={(time) => onSlot(day, time)}
+                onTask={onTask}
               />
             ))}
           </div>
@@ -165,12 +167,14 @@ function DayColumn({
   showNow,
   nowTop,
   onSlot,
+  onTask,
 }: {
   day: string;
   blocks: ReturnType<typeof layoutBlocks>;
   showNow: boolean;
   nowTop: number;
   onSlot: (time: string) => void;
+  onTask?: (task: Task) => void;
 }) {
   return (
     <div className="relative border-l border-white/5" style={{ height: HOURS.length * HOUR_PX }}>
@@ -191,10 +195,12 @@ function DayColumn({
       {blocks.map((block) => {
         const width = 100 / block.cols;
         return (
-          <div
+          <button
+            type="button"
             key={block.task.id}
+            aria-label={`Нагадування для «${block.task.title}»`}
             className={cn(
-              "absolute z-10 overflow-hidden rounded-md border-l-4 border-purple-500 bg-purple-950/40 px-1.5 py-1 text-left backdrop-blur-md",
+              "absolute z-10 overflow-hidden rounded-md border-l-4 border-purple-500 bg-purple-950/40 px-1.5 py-1 text-left backdrop-blur-md transition hover:bg-purple-900/50",
               block.task.is_completed && "opacity-45",
             )}
             style={{
@@ -203,14 +209,23 @@ function DayColumn({
               left: `calc(${block.col * width}% + 2px)`,
               width: `calc(${width}% - 4px)`,
             }}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (onTask) {
+                haptic.selection();
+                onTask(block.task);
+              }
+            }}
           >
             <p className="truncate text-[11px] font-medium leading-tight text-zinc-100">{block.task.title}</p>
             <p className="truncate text-[10px] text-purple-200/80">
               {formatTime(block.task.start_time ?? block.task.deadline ?? "")}
               {block.task.google_event_id ? " · G" : ""}
+              {block.task.remind_at && !block.task.is_completed && (
+                <Bell className="ml-1 inline size-2.5 align-[-1px] text-purple-300/80" aria-hidden />
+              )}
             </p>
-          </div>
+          </button>
         );
       })}
 

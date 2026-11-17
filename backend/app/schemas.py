@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 
 from app.config import TIMEZONE
 from app.models import Priority
+from app.services.reminders import MAX_OFFSET_MINUTES
 
 
 def _to_vienna(value: datetime | None) -> datetime | None:
@@ -28,6 +29,7 @@ class TaskCreate(BaseModel):
     priority: Priority = Priority.MEDIUM
     deadline: datetime | None = None
     remind_at: datetime | None = None
+    remind_before_minutes: int | None = Field(default=None, ge=0, le=MAX_OFFSET_MINUTES)
     start_time: datetime | None = None
     end_time: datetime | None = None
 
@@ -44,6 +46,7 @@ class TaskUpdate(BaseModel):
     priority: Priority | None = None
     deadline: datetime | None = None
     remind_at: datetime | None = None
+    remind_before_minutes: int | None = Field(default=None, ge=0, le=MAX_OFFSET_MINUTES)
     start_time: datetime | None = None
     end_time: datetime | None = None
     is_completed: bool | None = None
@@ -71,6 +74,7 @@ class TaskRead(BaseModel):
     priority: Priority
     deadline: datetime | None
     remind_at: datetime | None
+    remind_before_minutes: int | None
     start_time: datetime | None
     end_time: datetime | None
     google_event_id: str | None

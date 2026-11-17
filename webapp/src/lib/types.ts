@@ -9,6 +9,8 @@ export interface Task {
   priority: Priority;
   deadline: string | null;
   remind_at: string | null;
+  /** Relative reminder in minutes before the event; the server derives `remind_at` from it. */
+  remind_before_minutes: number | null;
   start_time: string | null;
   end_time: string | null;
   google_event_id: string | null;
@@ -24,6 +26,7 @@ export interface TaskCreate {
   priority?: Priority;
   deadline?: string | null;
   remind_at?: string | null;
+  remind_before_minutes?: number | null;
   start_time?: string | null;
   end_time?: string | null;
 }

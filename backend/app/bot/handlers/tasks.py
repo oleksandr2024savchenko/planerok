@@ -8,15 +8,30 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.callbacks import TaskAction, TaskActionCallback
-from app.bot.keyboards import created_tasks_keyboard
+from app.bot.callbacks import ReminderOffsetCallback, TaskAction, TaskActionCallback
+from app.bot.keyboards import (
+    BACK_FROM_OFFSET,
+    CLEAR_OFFSET,
+    CUSTOM_OFFSET,
+    created_tasks_keyboard,
+    reminder_offset_keyboard,
+)
 from app.bot.parser import EmptyTitleError, parse_task
 from app.bot.states import TaskEdit
-from app.bot.texts import ASK_NEW_TIME_TEXT, created_list_text, format_dt, task_details
+from app.bot.texts import (
+    ASK_CUSTOM_OFFSET_TEXT,
+    ASK_NEW_TIME_TEXT,
+    ASK_REMIND_OFFSET_TEXT,
+    NO_EVENT_TIME_TEXT,
+    created_list_text,
+    format_dt,
+    task_details,
+)
 from app.config import get_settings
 from app.models import Task
 from app.schemas import TaskUpdate
 from app.services import tasks as tasks_service
+from app.services.reminders import format_offset, parse_offset, reminder_anchor
 from app.services.ai_agent import (
     CATEGORY_SLUGS,
     ParsedTask,
@@ -45,6 +60,7 @@ def _regex_fallback(text: str) -> TaskExtractionResult:
         priority=parsed.priority.value,  # type: ignore[arg-type]
         deadline=parsed.deadline,
         remind_at=parsed.remind_at,
+        remind_before_minutes=parsed.remind_before_minutes,
     )
     return TaskExtractionResult(tasks=[finalize_task(task)])
 
@@ -118,6 +134,100 @@ async def on_delete_task(
     if isinstance(callback.message, Message):
         await callback.message.edit_text(f"🗑 Видалено: <b>{escape(title)}</b>", reply_markup=None)
     await callback.answer("Видалено")
+
+
+@router.callback_query(TaskActionCallback.filter(F.action == TaskAction.REMIND))
+async def on_remind_menu(
+    callback: CallbackQuery,
+    callback_data: TaskActionCallback,
+    session: AsyncSession,
+) -> None:
+    task = await tasks_service.get_task(session, callback.from_user.id, callback_data.task_id)
+    if task is None:
+        await callback.answer("Задачу не знайдено — можливо, її вже видалено.", show_alert=True)
+        return
+    if reminder_anchor(task.start_time, task.deadline) is None:
+        await callback.answer(NO_EVENT_TIME_TEXT, show_alert=True)
+        return
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            f"{ASK_REMIND_OFFSET_TEXT}\n\n{task_details(task)}",
+            reply_markup=reminder_offset_keyboard(task.id, task.remind_before_minutes),
+        )
+
+
+@router.callback_query(ReminderOffsetCallback.filter())
+async def on_remind_offset(
+    callback: CallbackQuery,
+    callback_data: ReminderOffsetCallback,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    message = callback.message if isinstance(callback.message, Message) else None
+    if callback_data.minutes == BACK_FROM_OFFSET:
+        await callback.answer()
+        if message is not None:
+            await message.delete()
+        return
+
+    task = await tasks_service.get_task(session, callback.from_user.id, callback_data.task_id)
+    if task is None:
+        await callback.answer("Задачу не знайдено — можливо, її вже видалено.", show_alert=True)
+        return
+
+    if callback_data.minutes == CUSTOM_OFFSET:
+        await state.set_state(TaskEdit.waiting_for_offset)
+        await state.update_data(task_id=task.id)
+        await callback.answer()
+        if message is not None:
+            await message.answer(ASK_CUSTOM_OFFSET_TEXT)
+        return
+
+    if callback_data.minutes == CLEAR_OFFSET:
+        task = await tasks_service.update_task(session, task, TaskUpdate(remind_before_minutes=None, remind_at=None))
+        status, toast = "🔕 Нагадування вимкнено", "Без нагадування"
+    else:
+        task = await tasks_service.update_task(
+            session, task, TaskUpdate(remind_before_minutes=callback_data.minutes)
+        )
+        status, toast = _offset_status(task), "Нагадування збережено"
+
+    if message is not None:
+        await message.edit_text(f"{status}\n\n{task_details(task)}", reply_markup=None)
+    await callback.answer(toast)
+
+
+def _offset_status(task: Task) -> str:
+    label = format_offset(task.remind_before_minutes or 0)
+    if task.remind_at is None or task.remind_at <= tasks_service.now():
+        return f"⚠️ Нагадування {label} вже в минулому — надсилати не буду"
+    return f"🔔 Нагадаю {label}: {format_dt(task.remind_at)}"
+
+
+@router.message(TaskEdit.waiting_for_offset, F.text)
+async def on_custom_offset(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    if message.from_user is None or message.text is None:
+        return
+    data = await state.get_data()
+    task_id = data.get("task_id")
+    task = await tasks_service.get_task(session, message.from_user.id, task_id) if isinstance(task_id, int) else None
+    if task is None:
+        await state.clear()
+        await message.reply("Задачу не знайдено — можливо, її вже видалено.")
+        return
+
+    minutes = parse_offset(message.text)
+    if minutes is None:
+        await message.reply("Не зрозумів інтервал. Напиши, наприклад: <code>2 години</code> або <code>3 дні</code>")
+        return
+
+    task = await tasks_service.update_task(session, task, TaskUpdate(remind_before_minutes=minutes))
+    await state.clear()
+    await message.reply(
+        f"{_offset_status(task)}\n\n{task_details(task)}",
+        reply_markup=created_tasks_keyboard([task.id], get_settings().webapp_url),
+    )
 
 
 @router.message(TaskEdit.waiting_for_time, F.text)

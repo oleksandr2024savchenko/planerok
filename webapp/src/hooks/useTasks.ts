@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { tasksApi, USE_MOCKS } from "@/lib/api";
 import { buildMockTask, createMockTasks } from "@/lib/mock-data";
+import { remindAtFor } from "@/lib/reminders";
 import type { Task, TaskCreate, TaskUpdate } from "@/lib/types";
 
 /** `enabled` should flip once the Telegram SDK is initialised, so requests carry initData. */
@@ -34,7 +35,8 @@ export function useTasks({ enabled }: { enabled: boolean }) {
     async (id: number, patch: TaskUpdate) => {
       const previous = tasks.find((task) => task.id === id);
       if (!previous) return;
-      setTasks((current) => current.map((task) => (task.id === id ? { ...task, ...patch } : task)));
+      const optimistic = withLocalReminder({ ...previous, ...patch } as Task, patch);
+      setTasks((current) => current.map((task) => (task.id === id ? optimistic : task)));
       if (USE_MOCKS) return;
       try {
         const saved = await tasksApi.update(id, patch);
@@ -77,4 +79,11 @@ export function useTasks({ enabled }: { enabled: boolean }) {
   );
 
   return { tasks, isLoading, error, reload, createTask, updateTask, toggleTask, deleteTask };
+}
+
+/** The server derives `remind_at` from the offset; mirror that so the UI (and demo mode) updates at once. */
+function withLocalReminder(task: Task, patch: TaskUpdate): Task {
+  if (patch.remind_at !== undefined || patch.remind_before_minutes === undefined) return task;
+  if (patch.remind_before_minutes === null) return task;
+  return { ...task, remind_at: remindAtFor(task, patch.remind_before_minutes) };
 }
