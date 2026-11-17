@@ -30,6 +30,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     scheduler = setup_scheduler(bot, settings)
     scheduler.start()
+    from app.db import session_factory
+    from app.scheduler import schedule_digests
+    from app.services.users import ensure_allowed_users
+
+    async with session_factory() as session:
+        accounts = await ensure_allowed_users(session)
+        schedule_digests(accounts)
 
     await bot.delete_webhook(drop_pending_updates=False)
     await configure_bot(bot, settings)
@@ -39,13 +46,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     polling.add_done_callback(_log_polling_exit)
 
     app.state.bot = bot
+    from app.services.external_calendars import refresh_external_feeds
     from app.services.google_calendar import bootstrap_google
 
     google_bootstrap = asyncio.create_task(bootstrap_google())
+    feeds_bootstrap = asyncio.create_task(refresh_external_feeds())
     try:
         yield
     finally:
+        feeds_bootstrap.cancel()
         google_bootstrap.cancel()
+        with suppress(asyncio.CancelledError):
+            await feeds_bootstrap
         with suppress(asyncio.CancelledError):
             await google_bootstrap
         with suppress(RuntimeError):

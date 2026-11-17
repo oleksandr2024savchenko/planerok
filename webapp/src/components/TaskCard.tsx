@@ -12,17 +12,27 @@ import type { Task } from "@/lib/types";
 interface TaskCardProps {
   task: Task;
   onToggle: (id: number) => void;
+  onOpen?: (id: number) => void;
 }
 
-export function TaskCard({ task, onToggle }: TaskCardProps) {
+export function TaskCard({ task, onToggle, onOpen }: TaskCardProps) {
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
   const when = task.start_time ?? task.deadline;
 
   return (
     <article
+      onClick={
+        onOpen
+          ? () => {
+              haptic.selection();
+              onOpen(task.id);
+            }
+          : undefined
+      }
       className={cn(
-        "group relative rounded-2xl border bg-zinc-900/60 p-3.5 backdrop-blur-md transition-all duration-300",
+        onOpen && "cursor-pointer",
+        "group relative rounded-2xl border bg-zinc-900/60 p-3.5 backdrop-blur-md transition-[border-color,box-shadow,opacity] duration-300",
         "border-white/5 hover:border-purple-500/40 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]",
         highlight && "border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]",
         task.is_completed && "opacity-55",
@@ -60,6 +70,16 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-zinc-500">
+            {task.is_shared && (
+              <span className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 font-medium text-fuchsia-200 shadow-[0_0_10px_rgba(255,45,214,0.35)]">
+                Спільне
+              </span>
+            )}
+            {task.read_only && (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-zinc-300">
+                {task.source_name ?? "Календар"}
+              </span>
+            )}
             {task.category && (
               <span className="rounded-full bg-purple-500/10 px-2 py-0.5 font-medium text-purple-300/90">
                 #{task.category}
@@ -68,8 +88,7 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
             {when && (
               <span className={cn("inline-flex items-center gap-1", overdue && "text-rose-400")}>
                 <Calendar className="size-3" />
-                {formatDay(when)} · {formatTime(when)}
-                {task.start_time && task.end_time ? `–${formatTime(task.end_time)}` : ""}
+                {task.all_day ? `${formatDay(when)} · весь день` : `${formatDay(when)} · ${formatTime(when)}${task.start_time && task.end_time ? `–${formatTime(task.end_time)}` : ""}`}
               </span>
             )}
             {task.remind_at && !task.is_completed && (
@@ -91,18 +110,21 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
       type="button"
       aria-pressed={checked}
       aria-label={checked ? "Позначити як невиконану" : "Виконати задачу"}
-      onClick={onToggle}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
       className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center"
     >
       <motion.span
-        className="pointer-events-none flex size-6 items-center justify-center rounded-full border-2"
-        animate={{
-          backgroundColor: checked ? "rgb(147 51 234)" : "rgba(0,0,0,0)",
-          borderColor: checked ? "rgb(168 85 247)" : "rgb(82 82 91)",
-          boxShadow: checked ? "0 0 12px rgba(168,85,247,0.55)" : "0 0 0 rgba(0,0,0,0)",
-        }}
-        whileTap={{ scale: 0.86 }}
-        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+        className={cn(
+          "pointer-events-none flex size-6 items-center justify-center rounded-full border-2 transition-colors",
+          checked
+            ? "border-[var(--accent)] bg-[var(--accent-strong)] shadow-[0_0_12px_var(--accent-glow)]"
+            : "border-zinc-600 bg-transparent",
+        )}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: "spring", stiffness: 420, damping: 32, mass: 0.7 }}
       >
         <AnimatePresence>
           {checked && (
@@ -111,7 +133,7 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
               initial={{ scale: 0.4, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.4, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 520, damping: 24 }}
+              transition={{ type: "spring", stiffness: 420, damping: 28, mass: 0.7 }}
             >
               <Check className="size-3.5 text-white" strokeWidth={3} />
             </motion.span>

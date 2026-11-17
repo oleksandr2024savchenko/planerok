@@ -31,7 +31,7 @@ export function EmptyState({ filter, onAdd }: EmptyStateProps) {
       <button
         type="button"
         onClick={onAdd}
-        className="mt-5 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-200 transition hover:border-purple-500/50 hover:bg-purple-500/15"
+        className="mt-5 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-200 hover:border-purple-500/50 hover:bg-purple-500/15 active:scale-[0.98]"
       >
         Додати задачу
       </button>

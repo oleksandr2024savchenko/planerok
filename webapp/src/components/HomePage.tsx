@@ -1,20 +1,31 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
 import { useTasks } from "@/hooks/useTasks";
-import { calendarApi, USE_MOCKS } from "@/lib/api";
+import { calendarApi, USE_MOCKS, usersApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { countByFilter, matchesFilter, sortTasks, todayProgress, type FilterId } from "@/lib/filters";
+import { SOFT_MOVE } from "@/lib/motion";
+import {
+  countByFilter,
+  matchesAudience,
+  matchesFilter,
+  sortTasks,
+  todayProgress,
+  type AudienceId,
+  type FilterId,
+} from "@/lib/filters";
 import type { CalendarStatus } from "@/lib/types";
 
 import { AddTaskSheet, type TaskSlot } from "./AddTaskSheet";
+import { ExternalCalendarSheet } from "./ExternalCalendarSheet";
 import { CalendarBoard } from "./CalendarBoard";
 import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
-import { FilterPills } from "./FilterPills";
-import { SyncBadge } from "./SyncBadge";
+import { AudiencePills, FilterPills } from "./FilterPills";
+import { SettingsBlock } from "./SettingsBlock";
 import { TaskList } from "./TaskList";
 import { useTelegram } from "./TelegramProvider";
 import { ViewModeSwitch, type ViewMode } from "./ViewModeSwitch";
@@ -24,45 +35,74 @@ const OFFLINE_STATUS: CalendarStatus = { connected: false, live: false, last_syn
 
 export function HomePage() {
   const { firstName, isReady } = useTelegram();
-  const { tasks, isLoading, error, reload, createTask, toggleTask } = useTasks({
+  const { tasks, isLoading, error, reload, createTask, updateTask, toggleTask } = useTasks({
     enabled: isReady || USE_MOCKS,
   });
   const [filter, setFilter] = useState<FilterId>("today");
+  const [audience, setAudience] = useState<AudienceId>("all");
   const [view, setView] = useState<ViewMode>("list");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [feedsOpen, setFeedsOpen] = useState(false);
   const [slot, setSlot] = useState<TaskSlot | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
 
-  const counts = useMemo(() => countByFilter(tasks), [tasks]);
+  const scoped = useMemo(() => tasks.filter((task) => matchesAudience(task, audience)), [tasks, audience]);
+  const counts = useMemo(() => countByFilter(scoped), [scoped]);
   const visible = useMemo(
-    () => sortTasks(tasks.filter((task) => matchesFilter(task, filter))),
-    [tasks, filter],
+    () => sortTasks(scoped.filter((task) => matchesFilter(task, filter))),
+    [scoped, filter],
   );
   const progress = useMemo(() => todayProgress(tasks), [tasks]);
   const ready = (isReady || USE_MOCKS) && !isLoading;
 
   useEffect(() => {
-    if (view !== "calendar" || USE_MOCKS) return;
-    const timer = setInterval(() => void reload({ silent: true }), 15_000);
-    return () => clearInterval(timer);
-  }, [view, reload]);
+    if (!isReady || USE_MOCKS) return;
+    let cancelled = false;
+    usersApi
+      .me()
+      .then((me) => {
+        if (cancelled) return;
+        const pink = me.theme === "pink";
+        document.documentElement.dataset.theme = pink ? "pink" : "violet";
+        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", pink ? "#4a1230" : "#12061f");
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady]);
+
+  const editing = tasks.find((task) => task.id === editingId) ?? null;
 
   function openSheet(nextSlot: TaskSlot | null = null) {
+    setEditingId(null);
     setSlot(nextSlot);
+    setSheetOpen(true);
+  }
+
+  function openTask(taskId: number) {
+    setSlot(null);
+    setEditingId(taskId);
     setSheetOpen(true);
   }
 
   return (
     <main className={cn("relative mx-auto min-h-dvh px-5 pb-28 pt-6", view === "calendar" ? "max-w-3xl" : "max-w-lg")}>
-      <DashboardHeader firstName={firstName} done={progress.done} total={progress.total} />
+      <DashboardHeader
+        firstName={firstName}
+        done={progress.done}
+        total={progress.total}
+        settings={<SettingsBlock status={sync} onConnect={() => setFeedsOpen(true)} />}
+      />
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <SyncBadge status={sync} />
+      <div className="mt-5 flex justify-end">
         <ViewModeSwitch value={view} onChange={setView} />
       </div>
 
       {view === "list" && (
         <div className="mt-4">
+          <AudiencePills value={audience} onChange={setAudience} />
           <FilterPills value={filter} counts={counts} onChange={setFilter} />
         </div>
       )}
@@ -78,17 +118,27 @@ export function HomePage() {
         </button>
       )}
 
-      <div className="mt-5">
+      <motion.div
+        key={ready ? view : "loading"}
+        className="mt-5"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SOFT_MOVE}
+      >
         {!ready ? (
           <TaskSkeleton />
         ) : view === "calendar" ? (
-          <CalendarBoard tasks={tasks} onSlot={(date, time) => openSheet({ date, time })} />
+          <CalendarBoard
+            tasks={scoped}
+            onSlot={(date, time) => openSheet({ date, time })}
+            onOpenTask={openTask}
+          />
         ) : visible.length === 0 ? (
           <EmptyState filter={filter} onAdd={() => openSheet(null)} />
         ) : (
-          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} />
+          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} onOpen={openTask} />
         )}
-      </div>
+      </motion.div>
 
       {USE_MOCKS && (
         <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
@@ -98,8 +148,16 @@ export function HomePage() {
       <AddTaskSheet
         open={sheetOpen}
         slot={slot}
+        task={editing}
         onClose={() => setSheetOpen(false)}
         onCreate={createTask}
+        onUpdate={updateTask}
+        onToggle={toggleTask}
+      />
+      <ExternalCalendarSheet
+        open={feedsOpen}
+        onClose={() => setFeedsOpen(false)}
+        onChanged={() => void reload({ silent: true })}
       />
     </main>
   );

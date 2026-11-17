@@ -1,5 +1,5 @@
 import { getInitData } from "./telegram";
-import type { CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
+import type { CalendarFeed, CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false" || !API_URL;
@@ -52,4 +52,21 @@ export const tasksApi = {
 
 export const calendarApi = {
   status: () => request<CalendarStatus>("/calendar/status"),
+  feeds: () => request<CalendarFeed[]>("/calendar/feeds"),
+  connect: (url: string, name?: string) =>
+    request<CalendarFeed>("/calendar/feeds", {
+      method: "POST",
+      body: JSON.stringify({ url, name: name || null }),
+    }),
+  disconnect: (id: number) => request<void>(`/calendar/feeds/${id}`, { method: "DELETE" }),
+};
+
+export interface Me {
+  telegram_id: number;
+  theme: string;
+  partner_telegram_id: number | null;
+}
+
+export const usersApi = {
+  me: () => request<Me>("/me"),
 };
