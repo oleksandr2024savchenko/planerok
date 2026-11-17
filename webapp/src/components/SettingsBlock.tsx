@@ -98,6 +98,9 @@ export function SettingsBlock({ status, onConnect }: SettingsBlockProps) {
                 <Link2 className="size-4 shrink-0 text-zinc-400" aria-hidden />
                 Календар за посиланням
               </button>
+              <p className="mt-3 text-center text-[10px] tracking-wide text-zinc-600">
+                Версія {process.env.NEXT_PUBLIC_BUILD_ID || "dev"}
+              </p>
             </motion.div>
           </>
         )}
