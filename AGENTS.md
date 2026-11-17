@@ -40,6 +40,8 @@ docker compose up -d --build webapp
 docker compose up -d --build backend
 ```
 
+Автодеплой: systemd-таймер `planer-autodeploy.timer` щохвилини запускає `deploy/auto-deploy.sh`. Скрипт робить `git fetch` гілки `DEPLOY_BRANCH` (у юніті `claude/great-gates-uwg8kl`), підтягує її лише fast-forward і перезбирає тільки змінене: `backend/` → backend, `webapp/` → webapp, `docker-compose.yml` → обидва. Останній задеплоєний коміт лежить у `.git/planer-deployed`; якщо збірка впала, наступний тік повторить. Ручні правки в tracked-файлах на сервері блокують деплой (`.env` і ключі не tracked — не заважають). Логи: `journalctl -u planer-autodeploy -n 50`. Тобто достатньо запушити в гілку — за хвилину-дві зміни на проді.
+
 `alembic upgrade head` виконує `backend/docker-entrypoint.sh` при кожному старті бекенда. Зміна `.env` потребує `docker compose up -d --force-recreate backend`: звичайний restart змінні не перечитує. Працівник один (`uvicorn` workers=1), бо опитування бота і планувальник живуть у процесі.
 
 ## Бекенд
