@@ -71,19 +71,22 @@ def _job_id(task_id: int) -> str:
     return f"task-reminder:{task_id}"
 
 
-def schedule_reminder(task_id: int, run_at: datetime) -> None:
-    trigger = DateTrigger(run_date=run_at, timezone=TIMEZONE)
-    job_id = _job_id(task_id)
-    if scheduler.get_job(job_id):
-        scheduler.reschedule_job(job_id, trigger=trigger)
-    else:
-        scheduler.add_job(
-            send_reminder,
-            trigger=trigger,
-            id=job_id,
-            args=[task_id],
-            replace_existing=True,
-        )
+def schedule_reminder(
+    task_id: int,
+    run_at: datetime,
+    *,
+    previous: dict[int, int] | None = None,
+    nag_count: int = 0,
+) -> None:
+    """One job per task. `previous` (chat → message) and `nag_count` carry a nag chain along."""
+    scheduler.add_job(
+        send_reminder,
+        trigger=DateTrigger(run_date=run_at, timezone=TIMEZONE),
+        id=_job_id(task_id),
+        args=[task_id],
+        kwargs={"previous": previous or {}, "nag_count": nag_count},
+        replace_existing=True,
+    )
     logger.info("Reminder for task %s scheduled at %s", task_id, run_at.astimezone(TIMEZONE))
 
 
@@ -94,14 +97,21 @@ def cancel_reminder(task_id: int) -> None:
         pass
 
 
-async def send_reminder(task_id: int) -> None:
-    """APScheduler job; referenced by import path, so keep it module-level."""
+async def send_reminder(task_id: int, previous: dict | None = None, nag_count: int = 0) -> None:
+    """APScheduler job; referenced by import path, so keep it module-level.
+
+    For high-priority tasks it re-schedules itself ("додовбувач") and removes the previous
+    nag message, so the chat shows one live reminder instead of a wall of them.
+    """
     if _bot is None:
         logger.error("Scheduler fired before the bot was configured")
         return
 
+    from app.services.reminders import next_nag_at
+
     async with session_factory() as session:
         task = await session.get(Task, task_id)
+        await _delete_messages(previous or {})
         if task is None or task.is_completed:
             return
         recipients = {task.user_id, task.owner_id}
@@ -113,14 +123,30 @@ async def send_reminder(task_id: int) -> None:
             other = await partner_id(session, task.owner_id or task.user_id)
             if other:
                 recipients.add(other)
+
+        follow_up = next_nag_at(task, datetime.now(TIMEZONE))
+        sent: dict[int, int] = {}
         for chat_id in recipients:
             if not chat_id:
                 continue
-            await _bot.send_message(
+            message = await _bot.send_message(
                 chat_id=chat_id,
-                text=reminder_text(task),
+                text=reminder_text(task, nag_count=nag_count, nagging=follow_up is not None),
                 reply_markup=reminder_keyboard(task.id),
             )
+            sent[chat_id] = message.message_id
+
+    if follow_up is not None:
+        schedule_reminder(task_id, follow_up, previous=sent, nag_count=nag_count + 1)
+
+
+async def _delete_messages(messages: dict) -> None:
+    for chat_id, message_id in messages.items():
+        try:
+            await _bot.delete_message(chat_id=int(chat_id), message_id=int(message_id))
+        except Exception:
+            # Already deleted by hand, too old, or edited into a status line: keep going.
+            logger.debug("Could not delete nag message %s in %s", message_id, chat_id)
 
 
 async def notify_shared_closed(task: Task, actor_id: int | None) -> None:

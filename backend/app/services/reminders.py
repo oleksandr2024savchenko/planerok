@@ -100,3 +100,77 @@ def parse_offset(text: str) -> int | None:
         return None
     minutes = count * per_unit
     return minutes if 0 <= minutes <= MAX_OFFSET_MINUTES else None
+
+
+# --- "Додовбувач": repeat reminders for high-priority tasks until they are done -------------
+
+
+def nag_settings() -> tuple[timedelta, time, time, timedelta]:
+    from app.config import get_settings
+
+    settings = get_settings()
+    return (
+        timedelta(minutes=max(settings.nag_interval_minutes, 1)),
+        time(settings.nag_quiet_start_hour % 24),
+        time(settings.nag_quiet_end_hour % 24),
+        timedelta(days=settings.nag_give_up_days),
+    )
+
+
+def skip_quiet_hours(at: datetime, quiet_start: time, quiet_end: time) -> datetime:
+    """Move a nag that would land at night to the end of the quiet window."""
+    local = at.astimezone(TIMEZONE)
+    clock = local.time()
+    if quiet_start == quiet_end:
+        return local
+    if quiet_start > quiet_end:  # window crosses midnight, e.g. 23:00–08:00
+        if clock >= quiet_start:
+            return datetime.combine(local.date() + timedelta(days=1), quiet_end, tzinfo=TIMEZONE)
+        if clock < quiet_end:
+            return datetime.combine(local.date(), quiet_end, tzinfo=TIMEZONE)
+        return local
+    if quiet_start <= clock < quiet_end:
+        return datetime.combine(local.date(), quiet_end, tzinfo=TIMEZONE)
+    return local
+
+
+def _nags(task) -> bool:
+    from app.models import Priority
+
+    return task.priority == Priority.HIGH and not task.is_completed
+
+
+def next_nag_at(task, now: datetime) -> datetime | None:
+    """When to nag again about a high-priority task whose reminder has already gone off."""
+    if not _nags(task):
+        return None
+    interval, quiet_start, quiet_end, give_up = nag_settings()
+    started = reminder_anchor(task.start_time, task.deadline) or task.remind_at
+    if started is None:
+        return None
+    candidate = skip_quiet_hours(now + interval, quiet_start, quiet_end)
+    if candidate > started + give_up:
+        return None
+    return candidate
+
+
+def next_fire_at(task, now: datetime) -> datetime | None:
+    """The next moment the bot should write about this task, or None."""
+    if task.is_completed:
+        return None
+    if task.remind_at is not None and task.remind_at > now:
+        return task.remind_at
+    if not _nags(task):
+        return None
+    if task.remind_at is not None:
+        first = task.remind_at
+    else:
+        anchor = reminder_anchor(task.start_time, task.deadline)
+        if anchor is None:
+            return None
+        # No reminder was set by hand, so the nagging start also respects the night.
+        _, quiet_start, quiet_end, _ = nag_settings()
+        first = skip_quiet_hours(anchor, quiet_start, quiet_end)
+    if first > now:
+        return first
+    return next_nag_at(task, now)

@@ -305,6 +305,12 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
                     setPriority(next);
                   }}
                 />
+                {priority === "high" && (
+                  // Mirrors the backend defaults: NAG_INTERVAL_MINUTES=5, quiet 23:00–08:00.
+                  <p className="text-xs leading-snug text-zinc-400">
+                    🔥 Додовбувач: після нагадування писатиму кожні 5 хв, доки не виконаєш. Вночі (23:00–08:00) мовчу.
+                  </p>
+                )}
               </fieldset>
 
               <label className="block min-w-0 space-y-1.5">

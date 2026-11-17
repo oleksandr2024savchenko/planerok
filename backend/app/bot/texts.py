@@ -41,8 +41,18 @@ def task_details(task: Task) -> str:
     return "\n".join(lines)
 
 
-def reminder_text(task: Task) -> str:
-    return f"⏰ <b>Нагадування</b>\n\n{task_details(task)}"
+def reminder_text(task: Task, *, nag_count: int = 0, nagging: bool = False) -> str:
+    if nag_count > 0:
+        header = f"🔥 <b>Додовбувач</b> · нагадую вже {nag_count + 1}-й раз"
+    else:
+        header = "⏰ <b>Нагадування</b>"
+    footer = ""
+    if nagging:
+        from app.services.reminders import nag_settings
+
+        minutes = int(nag_settings()[0].total_seconds() // 60)
+        footer = f"\n\n<i>Високий пріоритет: нагадуватиму кожні {minutes} хв, доки не виконаєш.</i>"
+    return f"{header}\n\n{task_details(task)}{footer}"
 
 
 def created_text(task: Task) -> str:

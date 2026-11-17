@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     google_oauth_redirect_uri: str | None = None
 
     dev_user_id: int | None = None
+
+    # "Додовбувач": high-priority tasks are re-sent until done, except during quiet hours.
+    nag_interval_minutes: int = 5
+    nag_quiet_start_hour: int = 23
+    nag_quiet_end_hour: int = 8
+    nag_give_up_days: int = 3
     init_data_ttl_seconds: int = 24 * 60 * 60
     # Comma-separated Telegram user ids allowed to use the bot and the API.
     allowed_telegram_ids: str = ""

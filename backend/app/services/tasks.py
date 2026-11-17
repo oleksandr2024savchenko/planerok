@@ -9,7 +9,7 @@ from app import scheduler
 from app.config import TIMEZONE
 from app.models import Task, User
 from app.schemas import TaskCreate, TaskScope, TaskUpdate
-from app.services.reminders import remind_at_for
+from app.services.reminders import next_fire_at, remind_at_for
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,11 @@ def _day_bounds(day_offset: int = 0) -> tuple[datetime, datetime]:
 
 
 def sync_reminder(task: Task) -> None:
-    if task.is_completed or task.remind_at is None or task.remind_at <= now():
+    run_at = next_fire_at(task, now())
+    if run_at is None:
         scheduler.cancel_reminder(task.id)
     else:
-        scheduler.schedule_reminder(task.id, task.remind_at)
+        scheduler.schedule_reminder(task.id, run_at)
 
 
 def apply_relative_reminder(task: Task, *, explicit_remind_at: bool, offset_changed: bool, anchor_changed: bool) -> None:
