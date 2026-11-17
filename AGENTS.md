@@ -11,7 +11,7 @@
 | Порядок у `ALLOWED_TELEGRAM_IDS` | Telegram ID | Тема | Google Calendar |
 | --- | --- | --- | --- |
 | перший | 969740172 | violet, `--void` `#12061f` | `savasashok@gmail.com` |
-| другий | 729424163 | pink, `--void` `#4a1230` | `pelmenkotanya@gmail.com` |
+| другий | 729424163 | pink (світла), `--void` `#fff0f7` | `pelmenkotanya@gmail.com` |
 
 Сервісний акаунт Google: `calendar-bot@planerok.iam.gserviceaccount.com`. Файл ключа на хості `planer/service_account.json`, у контейнері змонтований лише він: `/app/service_account.json`. Решта коду бекенда запечена в образ.
 
@@ -101,7 +101,7 @@ docker compose up -d --build backend
 - Прогрес «Виконано N з M» рахує всі задачі на сьогодні, включно з ICS. Простроченими ICS не стають (`isOverdue` для `read_only` завжди false).
 - Аудиторії: «Мої» ховає спільні, «Спільні» лишає лише їх, «Усі» показує все. Типово «Усі».
 - Теги: робота, навчання, тренування, особисте.
-- Тема з `GET /me` ставить `document.documentElement.dataset.theme` у `violet` або `pink`. Класи на кшталт `bg-zinc-950` у темі перемальовуються на `--panel`, тому меню зливається з карткою. Випадаюче меню налаштувань має фон `bg-[var(--void)]` і `z-40`.
+- Тема з `GET /me` ставить `document.documentElement.dataset.theme` у `violet` або `pink`. Pink — **світла**: блок `html[data-theme="pink"]` у `globals.css` перемаплює `--color-zinc-*` у ягідні відтінки тексту, поверхні робить білим склом, акценти — неоново-рожевими (`#ff2e97`). Квіточки — SVG (`Flower.tsx`, `FlowerDecor.tsx`); елементи лише для pink мають клас `pink-only`, а приховані в pink — `not-pink`. Для pink шапка Telegram стає `#FFF0F7` (`setSurfaceColor`). Класи на кшталт `bg-zinc-950` у темі перемальовуються на `--panel`, тому меню зливається з карткою. Випадаюче меню налаштувань має фон `bg-[var(--void)]` і `z-40`.
 - Налаштування — кнопка-гамбургер у шапці (`SettingsBlock`): статус Google («Наживо» / «Підключено» / «Немає зв’язку») і пункт «Календар за посиланням» (`ExternalCalendarSheet`).
 - `nginx.conf` без своїх cache-заголовків. Чанки Next з хешем, тож повторне відкриття Mini App підхоплює нову збірку. Якщо Telegram тримає старий HTML, додай на час перевірки query на кшталт `?v=…`.
 

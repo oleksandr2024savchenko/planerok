@@ -10,6 +10,8 @@ import { shortOffset } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 import type { Task } from "@/lib/types";
 
+import { Flower } from "./Flower";
+
 interface TaskCardProps {
   task: Task;
   onToggle: (id: number) => void;
@@ -140,7 +142,8 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
               exit={{ scale: 0.4, opacity: 0 }}
               transition={{ type: "spring", stiffness: 420, damping: 28, mass: 0.7 }}
             >
-              <Check className="size-3.5 text-white" strokeWidth={3} />
+              <Check className="not-pink size-3.5 text-white" strokeWidth={3} />
+              <Flower className="pink-only size-5" petal="#ffffff" petalEdge="#ffd1e8" center="#ff2e97" />
             </motion.span>
           )}
         </AnimatePresence>

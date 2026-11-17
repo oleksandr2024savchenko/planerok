@@ -88,21 +88,50 @@ html[data-theme="violet"] .border-white\/10 {
   border-color: rgba(196, 160, 255, 0.24);
 }
 
+.theme-flower,
+.theme-star {
+  display: none;
+  position: fixed;
+  z-index: 0;
+  line-height: 1;
+  font-size: 2rem;
+}
+
+html[data-theme="violet"] .theme-star {
+  display: block;
+  color: rgba(216, 180, 254, 0.45);
+  text-shadow: 0 0 12px rgba(147, 51, 234, 0.8);
+}
+
+/*
+ * Pink theme (729424163): light pastel pink with neon-pink accents and SVG flowers.
+ * Components keep their dark-theme classes; this block repaints them for a light page.
+ */
 html[data-theme="pink"] {
-  --void: #4a1230;
-  --accent: #ffd0f0;
-  --accent-strong: #ff4ad6;
-  --accent-glow: rgba(255, 74, 214, 0.8);
-  --panel: rgba(176, 48, 118, 0.84);
+  color-scheme: light;
+  --void: #fff0f7;
+  --accent: #c8006c;
+  --accent-strong: #ff2e97;
+  --accent-glow: rgba(255, 46, 151, 0.45);
+  --panel: rgba(255, 255, 255, 0.82);
+
+  /* Text greys flip into berry tones, readable on the light page. */
+  --color-zinc-50: #4d1039;
+  --color-zinc-100: #4d1039;
+  --color-zinc-200: #6b2253;
+  --color-zinc-300: #7f2d61;
+  --color-zinc-400: #9c4579;
+  --color-zinc-500: #b65a8f;
+  --color-zinc-600: #d98ab2;
+  --color-zinc-700: #fbc4de;
 }
 
 html[data-theme="pink"] body {
   background-color: var(--void);
   background-image:
-    radial-gradient(ellipse 100% 58% at 50% -8%, rgba(255, 90, 200, 0.9), transparent 60%),
-    radial-gradient(circle at 0% 28%, rgba(255, 120, 190, 0.5), transparent 30%),
-    radial-gradient(circle at 100% 16%, rgba(255, 170, 220, 0.48), transparent 28%),
-    radial-gradient(ellipse 80% 48% at 50% 112%, rgba(255, 45, 160, 0.62), transparent 58%);
+    radial-gradient(ellipse 80% 45% at 50% -6%, rgba(255, 46, 151, 0.22), transparent 62%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(255, 160, 214, 0.35), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 0% 60%, rgba(255, 199, 230, 0.45), transparent 70%);
 }
 
 html[data-theme="pink"] body > * {
@@ -110,35 +139,7 @@ html[data-theme="pink"] body > * {
   z-index: 1;
 }
 
-html[data-theme="pink"] body::before,
-html[data-theme="pink"] body::after {
-  content: "✿";
-  pointer-events: none;
-  position: fixed;
-  z-index: 0;
-  font-size: 4.6rem;
-  line-height: 1;
-  color: rgba(255, 150, 214, 0.62);
-  text-shadow: 0 0 22px rgba(255, 70, 190, 0.95);
-}
-
-html[data-theme="pink"] body::before {
-  top: 20%;
-  left: -0.85rem;
-  opacity: 0.85;
-}
-
-html[data-theme="pink"] body::after {
-  content: "❀";
-  right: -0.7rem;
-  bottom: 22%;
-  top: auto;
-  left: auto;
-  font-size: 5rem;
-  opacity: 0.8;
-  color: rgba(255, 186, 226, 0.7);
-}
-
+/* Glass surfaces become frosted white. */
 html[data-theme="pink"] .bg-zinc-900\/60,
 html[data-theme="pink"] .bg-zinc-900\/70,
 html[data-theme="pink"] .bg-zinc-900\/80,
@@ -149,45 +150,44 @@ html[data-theme="pink"] .bg-zinc-950\/95,
 html[data-theme="pink"] .bg-zinc-900,
 html[data-theme="pink"] .bg-zinc-800,
 html[data-theme="pink"] .bg-zinc-800\/80,
-html[data-theme="pink"] .bg-zinc-700,
-html[data-theme="pink"] .bg-black\/30 {
+html[data-theme="pink"] .bg-black\/30,
+html[data-theme="pink"] .bg-white\/\[0\.04\] {
   background-color: var(--panel);
 }
 
-.theme-flower,
-.theme-star {
-  display: none;
-  position: fixed;
-  z-index: 0;
-  line-height: 1;
-  font-size: 2rem;
+html[data-theme="pink"] .bg-zinc-950\/95 {
+  background-color: rgba(255, 240, 247, 0.97);
 }
 
-html[data-theme="pink"] .theme-flower {
-  display: block;
-  color: rgba(255, 170, 220, 0.72);
-  text-shadow: 0 0 16px rgba(255, 70, 190, 0.9);
+html[data-theme="pink"] .bg-zinc-800\/80 {
+  background-color: #ffe0ef;
 }
 
-html[data-theme="violet"] .theme-star {
-  display: block;
-  color: rgba(216, 180, 254, 0.45);
-  text-shadow: 0 0 12px rgba(147, 51, 234, 0.8);
+html[data-theme="pink"] .bg-white\/10,
+html[data-theme="pink"] .bg-white\/15,
+html[data-theme="pink"] .hover\:bg-white\/5:hover,
+html[data-theme="pink"] .hover\:bg-white\/10:hover {
+  background-color: rgba(255, 95, 174, 0.14);
 }
 
 html[data-theme="pink"] .bg-black\/60 {
-  background-color: rgba(74, 12, 48, 0.55);
+  background-color: rgba(90, 22, 65, 0.42);
 }
 
 html[data-theme="pink"] .border-white\/5,
-html[data-theme="pink"] .border-white\/10 {
-  border-color: rgba(255, 120, 210, 0.28);
+html[data-theme="pink"] .border-white\/10,
+html[data-theme="pink"] .hover\:border-white\/20:hover {
+  border-color: rgba(255, 95, 174, 0.28);
 }
 
+/* Neon pink accents. */
 html[data-theme="pink"] .bg-purple-600,
 html[data-theme="pink"] .bg-purple-500,
+html[data-theme="pink"] .bg-purple-400,
+html[data-theme="pink"] .bg-fuchsia-500,
+html[data-theme="pink"] .bg-fuchsia-400,
 html[data-theme="pink"] .hover\:bg-purple-500:hover {
-  background-color: #ff2bd6;
+  background-color: #ff2e97;
 }
 
 html[data-theme="pink"] .bg-purple-500\/10,
@@ -195,9 +195,15 @@ html[data-theme="pink"] .bg-purple-500\/15,
 html[data-theme="pink"] .bg-purple-500\/20,
 html[data-theme="pink"] .bg-purple-500\/25,
 html[data-theme="pink"] .bg-purple-950\/40,
+html[data-theme="pink"] .bg-fuchsia-500\/15,
 html[data-theme="pink"] .hover\:bg-purple-500\/15:hover,
 html[data-theme="pink"] .hover\:bg-purple-500\/\[0\.06\]:hover {
-  background-color: rgba(255, 45, 214, 0.18);
+  background-color: rgba(255, 46, 151, 0.12);
+}
+
+/* The "shared" toggle keeps white text, so its active state needs a solid neon fill. */
+html[data-theme="pink"] .bg-fuchsia-500\/20 {
+  background-color: #ff2e97;
 }
 
 html[data-theme="pink"] .border-purple-400,
@@ -206,52 +212,99 @@ html[data-theme="pink"] .border-purple-500\/20,
 html[data-theme="pink"] .border-purple-500\/30,
 html[data-theme="pink"] .border-purple-500\/40,
 html[data-theme="pink"] .border-purple-500\/50,
+html[data-theme="pink"] .border-fuchsia-300\/80,
 html[data-theme="pink"] .hover\:border-purple-500\/30:hover,
 html[data-theme="pink"] .hover\:border-purple-500\/40:hover,
 html[data-theme="pink"] .hover\:border-purple-500\/50:hover,
 html[data-theme="pink"] .focus\:border-purple-500\/50:focus {
-  border-color: rgba(255, 45, 214, 0.72);
+  border-color: rgba(255, 46, 151, 0.55);
 }
 
 html[data-theme="pink"] .text-purple-100,
 html[data-theme="pink"] .text-purple-200,
 html[data-theme="pink"] .text-purple-200\/80,
 html[data-theme="pink"] .text-purple-300,
-html[data-theme="pink"] .text-purple-300\/90 {
-  color: #ffd0f4;
+html[data-theme="pink"] .text-purple-300\/90,
+html[data-theme="pink"] .text-fuchsia-200,
+html[data-theme="pink"] .text-fuchsia-400 {
+  color: #c8006c;
+}
+
+html[data-theme="pink"] .text-fuchsia-100\/80 {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 html[data-theme="pink"] .from-violet-600,
 html[data-theme="pink"] .from-purple-600\/20 {
-  --tw-gradient-from: #ff2bd6;
+  --tw-gradient-from: #ff2e97;
+}
+
+html[data-theme="pink"] .from-purple-600\/20 {
+  --tw-gradient-from: rgba(255, 46, 151, 0.16);
 }
 
 html[data-theme="pink"] .via-violet-600\/5 {
-  --tw-gradient-via: rgba(255, 120, 210, 0.2);
+  --tw-gradient-via: rgba(255, 160, 214, 0.12);
 }
 
 html[data-theme="pink"] .to-fuchsia-500 {
-  --tw-gradient-to: #ff8ad8;
+  --tw-gradient-to: #ff7cc8;
 }
 
-html[data-theme="pink"] .shadow-\[0_0_8px_rgba\(232\,121\,249\,0\.85\)\],
-html[data-theme="pink"] .shadow-\[0_0_10px_rgba\(255\,45\,214\,0\.35\)\],
-html[data-theme="pink"] .shadow-\[0_0_10px_\#A855F7\],
-html[data-theme="pink"] .shadow-\[0_0_12px_rgba\(192\,38\,211\,0\.55\)\],
-html[data-theme="pink"] .shadow-\[0_0_15px_rgba\(168\,85\,247\,0\.15\)\],
-html[data-theme="pink"] .shadow-\[0_0_16px_rgba\(168\,85\,247\,0\.2\)\],
-html[data-theme="pink"] .shadow-\[0_0_16px_rgba\(168\,85\,247\,0\.25\)\],
-html[data-theme="pink"] .shadow-\[0_0_18px_rgba\(255\,45\,214\,0\.28\)\],
-html[data-theme="pink"] .shadow-\[0_0_20px_rgba\(168\,85\,247\,0\.15\)\],
-html[data-theme="pink"] .shadow-\[0_0_20px_rgba\(168\,85\,247\,0\.25\)\],
-html[data-theme="pink"] .shadow-\[0_0_24px_rgba\(168\,85\,247\,0\.18\)\],
-html[data-theme="pink"] .shadow-\[0_0_24px_rgba\(168\,85\,247\,0\.35\)\],
-html[data-theme="pink"] .shadow-\[0_0_25px_rgba\(168\,85\,247\,0\.6\)\],
-html[data-theme="pink"] .hover\:shadow-\[0_0_15px_rgba\(168\,85\,247\,0\.15\)\]:hover,
-html[data-theme="pink"] .hover\:shadow-\[0_0_32px_rgba\(168\,85\,247\,0\.8\)\]:hover,
-html[data-theme="pink"] .focus\:shadow-\[0_0_20px_rgba\(168\,85\,247\,0\.15\)\]:focus {
-  --tw-shadow: 0 0 18px rgba(255, 45, 214, 0.45);
+html[data-theme="pink"] [class^="shadow-[0_0_"],
+html[data-theme="pink"] [class*=" shadow-[0_0_"],
+html[data-theme="pink"] [class*="hover:shadow-[0_0_"]:hover {
+  --tw-shadow: 0 0 16px rgba(255, 46, 151, 0.35);
   box-shadow: var(--tw-shadow);
+}
+
+html[data-theme="pink"] [class*="shadow-[0_-20px_80px"],
+html[data-theme="pink"] [class*="shadow-[0_20px_60px"] {
+  box-shadow: 0 -12px 60px rgba(214, 51, 132, 0.22);
+}
+
+html[data-theme="pink"] ::selection {
+  background: rgba(255, 46, 151, 0.3);
+  color: #4d1039;
+}
+
+html[data-theme="pink"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="pink"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(32%) sepia(90%) saturate(3000%) hue-rotate(305deg);
+}
+
+/* Flowers: SVG decor and touches that only the pink theme shows. */
+.pink-only {
+  display: none;
+}
+
+html[data-theme="pink"] .pink-only {
+  display: revert;
+}
+
+html[data-theme="pink"] .not-pink {
+  display: none;
+}
+
+@keyframes flower-drift {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-14px) rotate(calc(var(--r, 0deg) + 18deg)); }
+}
+
+@keyframes flower-pop {
+  0% { transform: scale(0.4) rotate(-30deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.flower-float {
+  animation: flower-drift var(--d, 9s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flower-float {
+    animation: none;
+  }
 }
 
 ::selection {
@@ -259,20 +312,11 @@ html[data-theme="pink"] .focus\:shadow-\[0_0_20px_rgba\(168\,85\,247\,0\.15\)\]:
   color: #fafafa;
 }
 
-html[data-theme="pink"] ::selection {
-  background: rgba(255, 45, 214, 0.45);
-}
-
 /* Native date/time pickers: keep the icon visible on dark surfaces. */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7) sepia(1) saturate(4) hue-rotate(225deg);
   opacity: 0.8;
-}
-
-html[data-theme="pink"] input[type="date"]::-webkit-calendar-picker-indicator,
-html[data-theme="pink"] input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.65) sepia(1) saturate(8) hue-rotate(290deg);
 }
 
 button,

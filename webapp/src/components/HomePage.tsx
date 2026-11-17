@@ -8,6 +8,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS, usersApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { SOFT_MOVE } from "@/lib/motion";
+import { setSurfaceColor } from "@/lib/telegram";
 import {
   countByFilter,
   matchesAudience,
@@ -67,7 +68,9 @@ export function HomePage() {
         if (cancelled) return;
         const pink = me.theme === "pink";
         document.documentElement.dataset.theme = pink ? "pink" : "violet";
-        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", pink ? "#4a1230" : "#12061f");
+        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", pink ? "#fff0f7" : "#12061f");
+        // The pink theme is light, so Telegram's header follows it instead of staying black.
+        if (pink) setSurfaceColor("#FFF0F7");
       })
       .catch(() => undefined);
     return () => {
