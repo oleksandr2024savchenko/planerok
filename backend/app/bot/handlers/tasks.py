@@ -133,7 +133,7 @@ async def on_delete_task(
         await callback.answer("Задачу вже видалено.", show_alert=True)
         return
     title = task.title
-    await tasks_service.delete_task(session, task)
+    await tasks_service.delete_task(session, task, actor_id=callback.from_user.id)
     if isinstance(callback.message, Message):
         await callback.message.edit_text(f"🗑 Видалено: <b>{escape(title)}</b>", reply_markup=None)
     await callback.answer("Видалено")

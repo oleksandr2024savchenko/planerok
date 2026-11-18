@@ -8,6 +8,9 @@ class ReminderAction(StrEnum):
     SNOOZE_15M = "s15"
     SNOOZE_1H = "s60"
     TOMORROW = "tmr"
+    CANCEL = "cnl"  # asks «точно?»
+    CANCEL_YES = "cny"  # deletes the task
+    KEEP = "keep"  # back to the reminder buttons
 
 
 class ReminderCallback(CallbackData, prefix="rem"):

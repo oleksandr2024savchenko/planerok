@@ -52,5 +52,5 @@ async def update_task(task_id: int, payload: TaskUpdate, session: SessionDep, us
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(task_id: int, session: SessionDep, user_id: UserIdDep) -> Response:
     task = await _get_owned_task(session, user_id, task_id)
-    await tasks_service.delete_task(session, task)
+    await tasks_service.delete_task(session, task, actor_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

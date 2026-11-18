@@ -34,9 +34,19 @@ interface AddTaskSheetProps {
   onCreate: (data: TaskCreate) => Promise<unknown>;
   onUpdate: (id: number, data: TaskUpdate) => Promise<unknown>;
   onToggle: (id: number) => void;
+  onDelete?: (id: number) => Promise<unknown>;
 }
 
-export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate, onUpdate, onToggle }: AddTaskSheetProps) {
+export function AddTaskSheet({
+  open,
+  slot = null,
+  task = null,
+  onClose,
+  onCreate,
+  onUpdate,
+  onToggle,
+  onDelete,
+}: AddTaskSheetProps) {
   const titleId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
@@ -54,6 +64,7 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
   const [reminder, setReminder] = useState<number | null | undefined>(undefined);
   const [reminderKey, setReminderKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +89,7 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
     setCategory(asCategory(task?.category ?? null));
     setPriority(task?.priority ?? "medium");
     setError(null);
+    setConfirmCancel(false);
     const frame = requestAnimationFrame(() => titleRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [open, slot?.date, slot?.time, task?.id]);
@@ -410,6 +422,65 @@ export function AddTaskSheet({ open, slot = null, task = null, onClose, onCreate
               >
                 {submitting ? "Зберігаю…" : task ? "Зберегти" : "Додати задачу"}
               </button>
+
+              {task && onDelete && (
+                <div className="space-y-2">
+                  {confirmCancel ? (
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3">
+                      <p className="text-sm text-zinc-100">
+                        Скасувати «{task.title}»?
+                        <span className="mt-0.5 block text-xs text-zinc-400">
+                          Подія зникне з планера й Google Calendar, нагадування вимкнуться.
+                          {task.is_shared ? " Партнер отримає сповіщення." : ""}
+                        </span>
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            haptic.selection();
+                            setConfirmCancel(false);
+                          }}
+                          className="rounded-xl border border-white/10 py-2.5 text-sm font-medium text-zinc-100"
+                        >
+                          Ні, лишити
+                        </button>
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={async () => {
+                            setSubmitting(true);
+                            try {
+                              await onDelete(task.id);
+                              haptic.notify("warning");
+                              onClose();
+                            } catch (err) {
+                              haptic.notify("error");
+                              setError(err instanceof Error ? err.message : "Не вдалося скасувати");
+                            } finally {
+                              setSubmitting(false);
+                            }
+                          }}
+                          className="rounded-xl bg-rose-500 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                        >
+                          Так, скасувати
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic.impact("light");
+                        setConfirmCancel(true);
+                      }}
+                      className="w-full rounded-2xl py-2.5 text-sm font-medium text-rose-400 hover:text-rose-300"
+                    >
+                      Скасувати подію
+                    </button>
+                  )}
+                </div>
+              )}
               </>
               )}
             </form>

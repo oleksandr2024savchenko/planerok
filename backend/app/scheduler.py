@@ -185,6 +185,19 @@ async def notify_assigned(task: Task, actor_id: int | None) -> None:
         logger.exception("Could not tell %s about task %s", other, task.id)
 
 
+async def notify_cancelled(title: str, recipients: set[int], actor_id: int) -> None:
+    """A task that concerned the partner was cancelled: say so, so nobody waits for it."""
+    if _bot is None or not recipients:
+        return
+    async with session_factory() as session:
+        who = await _first_name(session, actor_id)
+    for chat_id in recipients:
+        try:
+            await _bot.send_message(chat_id=chat_id, text=f"❌ <b>{escape(who)}</b> скасовує «{escape(title)}»")
+        except Exception:
+            logger.exception("Could not tell %s about a cancelled task", chat_id)
+
+
 async def notify_done_for_author(task: Task, actor_id: int | None) -> None:
     """A task given to the partner was done: let its author know."""
     author = task.created_by_id

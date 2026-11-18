@@ -40,7 +40,7 @@ const OFFLINE_STATUS: CalendarStatus = { connected: false, live: false, last_syn
 
 export function HomePage() {
   const { firstName, isReady } = useTelegram();
-  const { tasks, isLoading, error, reload, createTask, updateTask, toggleTask } = useTasks({
+  const { tasks, isLoading, error, reload, createTask, updateTask, toggleTask, deleteTask } = useTasks({
     enabled: isReady || USE_MOCKS,
   });
   const [filter, setFilter] = useState<FilterId>("today");
@@ -167,6 +167,7 @@ export function HomePage() {
         onCreate={createTask}
         onUpdate={updateTask}
         onToggle={toggleTask}
+        onDelete={deleteTask}
       />
       <ExternalCalendarSheet
         open={feedsOpen}

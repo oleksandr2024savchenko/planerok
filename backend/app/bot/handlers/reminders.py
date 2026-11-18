@@ -1,10 +1,12 @@
 from datetime import timedelta
+from html import escape
 
 from aiogram import Router
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callbacks import ReminderAction, ReminderCallback
+from app.bot.keyboards import confirm_cancel_keyboard, reminder_keyboard
 from app.bot.texts import format_dt, task_details
 from app.services import tasks as tasks_service
 
@@ -20,6 +22,25 @@ async def on_reminder_action(
     task = await tasks_service.get_task(session, callback.from_user.id, callback_data.task_id)
     if task is None:
         await callback.answer("Задачу не знайдено — можливо, її вже видалено.", show_alert=True)
+        return
+
+    message = callback.message if isinstance(callback.message, Message) else None
+    if callback_data.action is ReminderAction.CANCEL:
+        if message is not None:
+            await message.edit_reply_markup(reply_markup=confirm_cancel_keyboard(task.id))
+        await callback.answer("Точно скасувати?")
+        return
+    if callback_data.action is ReminderAction.KEEP:
+        if message is not None:
+            await message.edit_reply_markup(reply_markup=reminder_keyboard(task.id))
+        await callback.answer()
+        return
+    if callback_data.action is ReminderAction.CANCEL_YES:
+        title = task.title
+        await tasks_service.delete_task(session, task, actor_id=callback.from_user.id)
+        if message is not None:
+            await message.edit_text(f"❌ <b>Скасовано</b>\n\n<s>{escape(title)}</s>", reply_markup=None)
+        await callback.answer("Скасовано")
         return
 
     match callback_data.action:

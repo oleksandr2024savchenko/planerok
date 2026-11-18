@@ -164,3 +164,33 @@ def test_creating_a_shared_task_tells_the_partner(monkeypatch) -> None:
     asyncio.run(tasks_service.create_task(session, ME, TaskCreate(title="Кіно", assignee="shared"), push_google=False))
     asyncio.run(tasks_service.create_task(session, ME, TaskCreate(title="Сам", assignee="me"), push_google=False))
     assert told == [True]  # shared → partner hears about it; a private task stays quiet
+
+
+def _delete(monkeypatch, task, actor):
+    told: list[tuple[str, set[int], int]] = []
+
+    async def notify(title, recipients, actor_id):
+        told.append((title, recipients, actor_id))
+
+    class _DeleteSession(_EditSession):
+        async def delete(self, _obj) -> None:
+            return None
+
+    monkeypatch.setattr(tasks_service.scheduler, "notify_cancelled", notify)
+    monkeypatch.setattr(tasks_service.scheduler, "cancel_reminder", lambda _id: None)
+    session = _DeleteSession(*_couple().users.values())
+    asyncio.run(tasks_service.delete_task(session, task, push_google=False, actor_id=actor))
+    return told
+
+
+def test_cancelling_a_shared_task_tells_the_partner(monkeypatch) -> None:
+    assert _delete(monkeypatch, _task(is_shared=True), ME) == [("Купити квіти", {HER}, ME)]
+
+
+def test_cancelling_a_task_given_to_me_tells_its_author(monkeypatch) -> None:
+    task = _task(owner_id=HER, user_id=HER, assigned_to_id=HER, created_by_id=ME)
+    assert _delete(monkeypatch, task, HER) == [("Купити квіти", {ME}, HER)]
+
+
+def test_cancelling_my_own_task_is_quiet(monkeypatch) -> None:
+    assert _delete(monkeypatch, _task(), ME) == [("Купити квіти", set(), ME)]

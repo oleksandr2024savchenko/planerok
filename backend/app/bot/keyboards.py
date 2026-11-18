@@ -94,5 +94,17 @@ def reminder_keyboard(task_id: int) -> InlineKeyboardMarkup:
     ]
     for text, action in buttons:
         builder.button(text=text, callback_data=ReminderCallback(action=action, task_id=task_id))
-    builder.adjust(1, 3)
+    builder.button(text="❌ Скасувати", callback_data=ReminderCallback(action=ReminderAction.CANCEL, task_id=task_id))
+    builder.adjust(1, 3, 1)
+    return builder.as_markup()
+
+
+def confirm_cancel_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="❌ Так, скасувати",
+        callback_data=ReminderCallback(action=ReminderAction.CANCEL_YES, task_id=task_id),
+    )
+    builder.button(text="← Ні", callback_data=ReminderCallback(action=ReminderAction.KEEP, task_id=task_id))
+    builder.adjust(2)
     return builder.as_markup()

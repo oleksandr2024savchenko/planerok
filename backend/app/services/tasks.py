@@ -270,14 +270,28 @@ async def _drop_google_copies(copies: list[tuple[str, str | None]]) -> None:
             logger.exception("Could not remove Google event %s after a hand-over", event_id)
 
 
-async def delete_task(session: AsyncSession, task: Task, *, push_google: bool = True) -> None:
+async def delete_task(
+    session: AsyncSession,
+    task: Task,
+    *,
+    push_google: bool = True,
+    actor_id: int | None = None,
+) -> None:
     task_id = task.id
     event_id = task.google_event_id
     partner_event_id = task.partner_google_event_id
     owner_id = task.owner_id
+    title = task.title
+    involved = {task.owner_id, task.user_id, task.assigned_to_id, task.created_by_id}
+    if task.is_shared and actor_id is not None:
+        involved.add(await _partner_of(session, actor_id))
     await session.delete(task)
     await session.commit()
     scheduler.cancel_reminder(task_id)
+    if actor_id is not None:
+        # Whoever else this task concerned (shared, given to them, or written by them) hears about it.
+        others = {person for person in involved if person and person != actor_id}
+        await scheduler.notify_cancelled(title, others, actor_id=actor_id)
     if not push_google:
         return
     from app.services.google_calendar import delete_event
