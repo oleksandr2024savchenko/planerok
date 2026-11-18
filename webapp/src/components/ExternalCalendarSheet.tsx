@@ -5,8 +5,9 @@ import { X } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { calendarApi, USE_MOCKS } from "@/lib/api";
-import { SHEET, SOFT_MOVE } from "@/lib/motion";
 import { haptic } from "@/lib/telegram";
+
+import { SheetBackdrop, SheetPanel } from "./Sheet";
 import type { CalendarFeed } from "@/lib/types";
 
 interface ExternalCalendarSheetProps {
@@ -95,22 +96,8 @@ export function ExternalCalendarSheet({ open, onClose, onChanged }: ExternalCale
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-          <motion.button
-            type="button"
-            aria-label="Закрити"
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="absolute inset-x-0 bottom-0 mx-auto max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 pb-safe shadow-[0_-20px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={SHEET}
-          >
+          <SheetBackdrop onClose={onClose} />
+          <SheetPanel>
             <div className="mx-auto mb-2 mt-3 h-1 w-10 rounded-full bg-white/15" />
             <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4 px-4 pb-5 sm:px-5">
               <div className="flex items-start justify-between gap-3">
@@ -189,7 +176,7 @@ export function ExternalCalendarSheet({ open, onClose, onChanged }: ExternalCale
                 </ul>
               )}
             </form>
-          </motion.div>
+          </SheetPanel>
         </div>
       )}
     </AnimatePresence>

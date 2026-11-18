@@ -299,6 +299,33 @@ html[data-theme="pink"] .not-pink {
 .flower-float {
   animation: flower-drift var(--d, 9s) ease-in-out infinite;
   animation-delay: var(--delay, 0s);
+  /* Own GPU layer: the drop-shadow is drawn once, the drift only moves the layer. */
+  will-change: transform;
+}
+
+/* While a sheet is open the flowers hold still, so the 60 Hz phone spends its frames on the sheet. */
+.sheet-open .flower-float {
+  animation-play-state: paused;
+}
+
+/* Bottom sheets. Only the violet (120 Hz) account gets a live blur behind the sheet; the pink
+   (60 Hz) one gets a plain dim, because re-blurring the page every frame is what drops frames. */
+html[data-theme="violet"] .sheet-backdrop {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.sheet-surface {
+  contain: layout paint;
+}
+
+/* Without a live blur the sheet must hide the page by itself: near-solid in both themes. */
+html[data-theme="violet"] .sheet-surface {
+  background-color: rgba(36, 16, 72, 0.985);
+}
+
+html[data-theme="pink"] .sheet-surface {
+  background-color: #fff3f9;
 }
 
 @media (prefers-reduced-motion: reduce) {

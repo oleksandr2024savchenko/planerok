@@ -8,9 +8,10 @@ import { ChoiceChip, SegmentedControl } from "@/components/SegmentedControl";
 import { cn } from "@/lib/cn";
 import { clockInput, dateKey, shiftTime, todayKey, viennaToDate } from "@/lib/date";
 import { assigneeOf, useCouple, type Assignee } from "@/lib/couple";
-import { SHEET, SOFT_MOVE } from "@/lib/motion";
 import { reminderAnchor, remindAtFor } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
+
+import { SheetBackdrop, SheetPanel } from "./Sheet";
 import { CATEGORIES, type Category, type Priority, type Task, type TaskCreate, type TaskUpdate } from "@/lib/types";
 
 import { ReminderPicker } from "./ReminderPicker";
@@ -173,24 +174,9 @@ export function AddTaskSheet({
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-          <motion.button
-            type="button"
-            aria-label="Закрити"
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: SOFT_MOVE.ease }}
-            onClick={onClose}
-          />
+          <SheetBackdrop onClose={onClose} />
 
-          <motion.div
-            className="absolute inset-x-0 bottom-0 mx-auto max-h-[92dvh] w-full max-w-lg overflow-x-clip overflow-y-auto rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 pb-safe shadow-[0_-20px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={SHEET}
-          >
+          <SheetPanel className="overflow-x-clip">
             <div className="mx-auto mb-2 mt-3 h-1 w-10 rounded-full bg-white/15" />
 
             <form onSubmit={handleSubmit} className="space-y-5 px-4 pb-4 sm:px-5">
@@ -486,7 +472,7 @@ export function AddTaskSheet({
               </>
               )}
             </form>
-          </motion.div>
+          </SheetPanel>
         </div>
       )}
     </AnimatePresence>
