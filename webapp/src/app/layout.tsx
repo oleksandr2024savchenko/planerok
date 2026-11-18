@@ -9,6 +9,8 @@ import { ThemeDecor } from "@/components/ThemeDecor";
 
 import "./globals.css";
 
+const THEME_BOOT = `try{var t=localStorage.getItem("planer:theme");if(t==="pink"||t==="violet")document.documentElement.dataset.theme=t}catch(e){}`;
+
 export const metadata: Metadata = {
   title: "Planer",
   description: "Персональний планер у Telegram",
@@ -25,7 +27,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="uk" data-theme="violet" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html
+      lang="uk"
+      data-theme="violet"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
+      <head>
+        {/* Paint the remembered theme before React starts, so the pink page never flashes violet. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body className="font-sans text-zinc-100">
         <ThemeDecor />
         <div className="pink-only">

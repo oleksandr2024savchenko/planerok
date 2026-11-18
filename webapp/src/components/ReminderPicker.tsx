@@ -15,6 +15,8 @@ import {
 } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 
+import { Reveal } from "./Reveal";
+
 interface ReminderPickerProps {
   /** Minutes before the event, or null for no reminder. Remount with a `key` to reset. */
   value: number | null;
@@ -84,7 +86,7 @@ export function ReminderPicker({ value, onChange, preview, dateOnly = false }: R
         </ChoiceChip>
       </div>
 
-      {custom && (
+      <Reveal show={custom}>
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 text-sm text-zinc-400">за</span>
           <input
@@ -111,7 +113,7 @@ export function ReminderPicker({ value, onChange, preview, dateOnly = false }: R
           />
           <span className="shrink-0 text-sm text-zinc-400">до</span>
         </div>
-      )}
+      </Reveal>
 
       <p className="flex items-center gap-1.5 text-xs text-zinc-500">
         <Bell className="size-3 shrink-0" />
@@ -124,9 +126,9 @@ export function ReminderPicker({ value, onChange, preview, dateOnly = false }: R
           {passed && <span className="text-amber-400/90"> · вже минуло</span>}
         </span>
       </p>
-      {dateOnly && value !== null && (
+      <Reveal show={dateOnly && value !== null}>
         <p className="text-[11px] text-zinc-600">Для задачі без часу відлік іде від 07:00 дня дедлайну.</p>
-      )}
+      </Reveal>
     </div>
   );
 }

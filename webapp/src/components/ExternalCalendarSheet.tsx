@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { calendarApi, USE_MOCKS } from "@/lib/api";
-import { SOFT_MOVE } from "@/lib/motion";
+import { SHEET, SOFT_MOVE } from "@/lib/motion";
 import { haptic } from "@/lib/telegram";
 import type { CalendarFeed } from "@/lib/types";
 
@@ -109,7 +109,7 @@ export function ExternalCalendarSheet({ open, onClose, onChanged }: ExternalCale
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ duration: 0.42, ease: SOFT_MOVE.ease }}
+            transition={SHEET}
           >
             <div className="mx-auto mb-2 mt-3 h-1 w-10 rounded-full bg-white/15" />
             <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4 px-4 pb-5 sm:px-5">

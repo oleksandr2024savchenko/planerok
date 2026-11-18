@@ -137,7 +137,7 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
     >
       <motion.span
         className={cn(
-          "pointer-events-none flex size-6 items-center justify-center rounded-full border-2 transition-colors",
+          "pointer-events-none flex size-6 items-center justify-center rounded-full border-2 transition-[background-color,border-color,box-shadow] duration-300",
           checked
             ? "border-[var(--accent)] bg-[var(--accent-strong)] shadow-[0_0_12px_var(--accent-glow)]"
             : "border-zinc-600 bg-transparent",

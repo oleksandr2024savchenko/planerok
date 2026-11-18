@@ -8,12 +8,13 @@ import { ChoiceChip, SegmentedControl } from "@/components/SegmentedControl";
 import { cn } from "@/lib/cn";
 import { clockInput, dateKey, shiftTime, todayKey, viennaToDate } from "@/lib/date";
 import { assigneeOf, useCouple, type Assignee } from "@/lib/couple";
-import { SOFT_MOVE } from "@/lib/motion";
+import { SHEET, SOFT_MOVE } from "@/lib/motion";
 import { reminderAnchor, remindAtFor } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
 import { CATEGORIES, type Category, type Priority, type Task, type TaskCreate, type TaskUpdate } from "@/lib/types";
 
 import { ReminderPicker } from "./ReminderPicker";
+import { Reveal } from "./Reveal";
 
 const PRIORITIES: { id: Priority; label: string }[] = [
   { id: "low", label: "Низький" },
@@ -179,7 +180,7 @@ export function AddTaskSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.28, ease: SOFT_MOVE.ease }}
+            transition={{ duration: 0.35, ease: SOFT_MOVE.ease }}
             onClick={onClose}
           />
 
@@ -188,7 +189,7 @@ export function AddTaskSheet({
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ duration: 0.42, ease: SOFT_MOVE.ease }}
+            transition={SHEET}
           >
             <div className="mx-auto mb-2 mt-3 h-1 w-10 rounded-full bg-white/15" />
 
@@ -324,12 +325,12 @@ export function AddTaskSheet({
                     setPriority(next);
                   }}
                 />
-                {priority === "high" && (
-                  // Mirrors the backend defaults: NAG_INTERVAL_MINUTES=5, quiet 23:00–08:00.
-                  <p className="text-xs leading-snug text-zinc-400">
+                {/* Mirrors the backend defaults: NAG_INTERVAL_MINUTES=5, quiet 23:00–08:00. */}
+                <Reveal show={priority === "high"}>
+                  <p className="pt-1 text-xs leading-snug text-zinc-400">
                     🔥 Додовбувач: після нагадування писатиму кожні 5 хв, доки не виконаєш. Вночі (23:00–08:00) мовчу.
                   </p>
-                )}
+                </Reveal>
               </fieldset>
 
               <label className="block min-w-0 space-y-1.5">
@@ -368,7 +369,7 @@ export function AddTaskSheet({
                 </label>
               </div>
 
-              {date && (
+              <Reveal show={Boolean(date)}>
                 <fieldset className="min-w-0 space-y-2">
                   <legend className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
                     <Bell className="size-3 shrink-0" />
@@ -382,7 +383,7 @@ export function AddTaskSheet({
                     dateOnly={!startTime}
                   />
                 </fieldset>
-              )}
+              </Reveal>
 
               <fieldset className="min-w-0 space-y-2">
                 <legend className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
@@ -425,7 +426,7 @@ export function AddTaskSheet({
 
               {task && onDelete && (
                 <div className="space-y-2">
-                  {confirmCancel ? (
+                  <Reveal show={confirmCancel}>
                     <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3">
                       <p className="text-sm text-zinc-100">
                         Скасувати «{task.title}»?
@@ -467,7 +468,8 @@ export function AddTaskSheet({
                         </button>
                       </div>
                     </div>
-                  ) : (
+                  </Reveal>
+                  <Reveal show={!confirmCancel}>
                     <button
                       type="button"
                       onClick={() => {
@@ -478,7 +480,7 @@ export function AddTaskSheet({
                     >
                       Скасувати подію
                     </button>
-                  )}
+                  </Reveal>
                 </div>
               )}
               </>

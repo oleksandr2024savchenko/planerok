@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
 
 import { groupByDate, isOverdue, type FilterId } from "@/lib/filters";
-import { EASE } from "@/lib/motion";
+import { EASE, GLIDE } from "@/lib/motion";
 import type { Task } from "@/lib/types";
 
 import { TaskCard } from "./TaskCard";
@@ -93,7 +93,7 @@ function Cards({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ layout: { duration: 0.35, ease: EASE }, opacity: { duration: 0.2 } }}
+            transition={{ layout: GLIDE, opacity: { duration: 0.3, ease: EASE } }}
           >
             <TaskCard task={task} onToggle={onToggle} onOpen={onOpen} />
           </motion.li>

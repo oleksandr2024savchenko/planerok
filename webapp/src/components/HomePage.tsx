@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
 import { useAppUpdates } from "@/hooks/useAppUpdates";
@@ -8,7 +8,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS, usersApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { CoupleContext, type Couple } from "@/lib/couple";
-import { SOFT_MOVE } from "@/lib/motion";
+import { EASE, SOFT_MOVE } from "@/lib/motion";
 import { setSurfaceColor } from "@/lib/telegram";
 import {
   countByFilter,
@@ -76,6 +76,11 @@ export function HomePage() {
         setCouple({ meId: me.telegram_id, partnerName: me.partner_first_name?.trim() || "Партнер" });
         const pink = me.theme === "pink";
         document.documentElement.dataset.theme = pink ? "pink" : "violet";
+        try {
+          localStorage.setItem("planer:theme", pink ? "pink" : "violet");
+        } catch {
+          // Private mode: the theme just loads a moment later next time.
+        }
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content", pink ? "#fff0f7" : "#12061f");
         // The pink theme is light, so Telegram's header follows it instead of staying black.
         if (pink) setSurfaceColor("#FFF0F7");
@@ -132,11 +137,14 @@ export function HomePage() {
         </button>
       )}
 
+      {/* Switching view, filter or audience fades the old list out before the new one rises in. */}
+      <AnimatePresence mode="wait" initial={false}>
       <motion.div
-        key={ready ? view : "loading"}
+        key={ready ? `${view}:${view === "list" ? `${filter}:${audience}` : audience}` : "loading"}
         className="mt-5"
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6, transition: { duration: 0.16, ease: EASE } }}
         transition={SOFT_MOVE}
       >
         {!ready ? (
@@ -153,6 +161,7 @@ export function HomePage() {
           <TaskList tasks={visible} filter={filter} onToggle={toggleTask} onOpen={openTask} />
         )}
       </motion.div>
+      </AnimatePresence>
 
       {USE_MOCKS && (
         <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
