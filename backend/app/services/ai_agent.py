@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import shutil
@@ -280,6 +281,24 @@ def _safe_error(exc: BaseException) -> str:
     return text[:500]
 
 
+_TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
+_TRANSIENT_STATUSES = {"UNAVAILABLE", "INTERNAL", "DEADLINE_EXCEEDED", "RESOURCE_EXHAUSTED"}
+# Pauses between tries of the same request when Gemini is busy or slow.
+RETRY_DELAYS = (1.5, 4.0)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """Overload, rate limit, timeout or a dropped connection: worth trying again."""
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError)):
+        return True
+    if getattr(exc, "code", None) in _TRANSIENT_CODES:
+        return True
+    if str(getattr(exc, "status", "") or "") in _TRANSIENT_STATUSES:
+        return True
+    name = type(exc).__name__
+    return any(part in name for part in ("Timeout", "Connect", "RemoteProtocol", "ReadError"))
+
+
 def _failure_message(exc: BaseException) -> str:
     code = getattr(exc, "code", None)
     status = str(getattr(exc, "status", "") or "")
@@ -289,7 +308,10 @@ def _failure_message(exc: BaseException) -> str:
         return "Ліміт Gemini вичерпано. Спробуй трохи пізніше."
     if code == 404 or status == "NOT_FOUND":
         return "Модель Gemini недоступна. Перевір GEMINI_MODEL."
-    return "Не вдалося розпізнати повідомлення"
+    if _is_transient(exc):
+        return "Gemini зараз не відповідає. Спробуй ще раз за хвилину."
+    detail = code or type(exc).__name__
+    return f"Не вдалося розпізнати повідомлення (Gemini: {detail})"
 
 
 def _is_rejected_request(exc: BaseException) -> bool:
@@ -365,6 +387,38 @@ async def _generate(
     now: datetime,
     schema: type[BaseModel] | None,
 ) -> object:
+    """One request, retried while Gemini is busy, then once on the fallback model if set."""
+    settings = get_settings()
+    models = [settings.gemini_model]
+    if settings.gemini_fallback_model and settings.gemini_fallback_model != settings.gemini_model:
+        models.append(settings.gemini_fallback_model)
+    last: BaseException | None = None
+    for model in models:
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            try:
+                return await asyncio.wait_for(
+                    _generate_once(parts, now, schema, model),
+                    timeout=settings.gemini_timeout_seconds,
+                )
+            except Exception as exc:
+                last = exc
+                if not _is_transient(exc):
+                    raise
+                logger.warning(
+                    "Gemini %s busy (try %s): %s", model, attempt + 1, _safe_error(exc) or type(exc).__name__
+                )
+                if attempt < len(RETRY_DELAYS):
+                    await asyncio.sleep(RETRY_DELAYS[attempt])
+    assert last is not None
+    raise last
+
+
+async def _generate_once(
+    parts: list[types.Part | str],
+    now: datetime,
+    schema: type[BaseModel] | None,
+    model: str,
+) -> object:
     config_kwargs: dict[str, object] = {
         "system_instruction": build_system_prompt(now),
         "temperature": 0.1,
@@ -373,7 +427,7 @@ async def _generate(
     if schema is not None:
         config_kwargs["response_schema"] = schema
     return await _client().aio.models.generate_content(
-        model=get_settings().gemini_model,
+        model=model,
         contents=parts,
         config=types.GenerateContentConfig(**config_kwargs),
     )

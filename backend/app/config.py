@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.6-flash"
+    # Tried once when the main model keeps failing (e.g. overloaded). Empty = no fallback.
+    gemini_fallback_model: str | None = None
+    # Seconds to wait for one Gemini answer before giving up on that try.
+    gemini_timeout_seconds: float = 60.0
 
     # Google Calendar. Either a service-account JSON file, or an OAuth client + refresh token.
     google_client_id: str | None = None

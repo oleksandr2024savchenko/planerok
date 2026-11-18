@@ -309,7 +309,14 @@ async def on_voice_task(message: Message, session: AsyncSession) -> None:
             await status.edit_text("🤔 Не почув жодного завдання. Спробуй ще раз, трохи конкретніше.")
             return
 
-        created = await _persist_tasks(session, message.from_user.id, extraction)
+        try:
+            created = await _persist_tasks(session, message.from_user.id, extraction)
+        except Exception:
+            logger.exception("Saving voice tasks failed for user %s", message.from_user.id)
+            await session.rollback()
+            titles = ", ".join(f"«{task.title}»" for task in extraction.tasks[:3])
+            await status.edit_text(f"🎙 Розпізнав {titles}, але не зміг зберегти. Спробуй ще раз.")
+            return
         await _reply_with_tasks(message, created, status=status)
     except Exception:
         logger.exception(
@@ -317,10 +324,14 @@ async def on_voice_task(message: Message, session: AsyncSession) -> None:
             message.from_user.id,
             message.message_id,
         )
-        if status is not None:
-            await status.edit_text("🎙 Не вдалося розпізнати повідомлення")
-        else:
-            await message.reply("🎙 Не вдалося розпізнати повідомлення")
+        text = "🎙 Щось пішло не так із голосовим. Спробуй ще раз або напиши текстом."
+        try:
+            if status is not None:
+                await status.edit_text(text)
+            else:
+                await message.reply(text)
+        except Exception:
+            logger.exception("Could not report the voice failure to %s", message.from_user.id)
 
 
 @router.message(F.text & ~F.text.startswith("/"))

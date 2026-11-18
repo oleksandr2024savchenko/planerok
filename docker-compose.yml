@@ -37,6 +37,12 @@ services:
     env_file: .env
     volumes:
       - ./service_account.json:/app/service_account.json:ro
+    # Logs go to the host journal, so they survive the container being recreated on deploy:
+    #   sudo journalctl -t planer-backend --since "2 hours ago"
+    logging:
+      driver: journald
+      options:
+        tag: planer-backend
     depends_on:
       db:
         condition: service_healthy
