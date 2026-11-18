@@ -110,3 +110,57 @@ def test_names_are_filled_from_telegram_once() -> None:
     assert me.first_name == "Саша"
     assert her.first_name is None  # Telegram refused: stay unnamed, no crash
     assert asked == [ME, HER]  # a known name is not asked again
+
+
+class _EditSession(_Session):
+    async def commit(self) -> None:
+        return None
+
+    async def refresh(self, _obj) -> None:
+        return None
+
+
+def _edit(monkeypatch, task, update, actor):
+    told: list[tuple[int, bool]] = []
+
+    async def notify(t, actor_id):
+        told.append((actor_id, t.is_shared))
+
+    monkeypatch.setattr(tasks_service.scheduler, "notify_assigned", notify)
+    monkeypatch.setattr(tasks_service, "sync_reminder", lambda t: None)
+    session = _EditSession(*_couple().users.values())
+    asyncio.run(tasks_service.update_task(session, task, update, push_google=False, actor_id=actor))
+    return told
+
+
+def test_making_a_task_shared_tells_the_partner(monkeypatch) -> None:
+    assert _edit(monkeypatch, _task(), TaskUpdate(assignee="shared"), ME) == [(ME, True)]
+    # The old toggle field counts too.
+    assert _edit(monkeypatch, _task(), TaskUpdate(is_shared=True), HER) == [(HER, True)]
+
+
+def test_plain_edits_stay_quiet(monkeypatch) -> None:
+    assert _edit(monkeypatch, _task(is_shared=True), TaskUpdate(title="Інша назва"), ME) == []
+    assert _edit(monkeypatch, _task(), TaskUpdate(title="Інша назва"), ME) == []
+
+
+def test_giving_a_task_away_still_tells_the_partner(monkeypatch) -> None:
+    assert _edit(monkeypatch, _task(), TaskUpdate(assignee="partner"), ME) == [(ME, False)]
+
+
+def test_creating_a_shared_task_tells_the_partner(monkeypatch) -> None:
+    told: list[bool] = []
+
+    async def notify(t, actor_id):
+        told.append(t.is_shared)
+
+    class _CreateSession(_EditSession):
+        def add(self, obj) -> None:
+            obj.id = 99
+
+    monkeypatch.setattr(tasks_service.scheduler, "notify_assigned", notify)
+    monkeypatch.setattr(tasks_service, "sync_reminder", lambda t: None)
+    session = _CreateSession(*_couple().users.values())
+    asyncio.run(tasks_service.create_task(session, ME, TaskCreate(title="Кіно", assignee="shared"), push_google=False))
+    asyncio.run(tasks_service.create_task(session, ME, TaskCreate(title="Сам", assignee="me"), push_google=False))
+    assert told == [True]  # shared → partner hears about it; a private task stays quiet

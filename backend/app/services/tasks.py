@@ -235,7 +235,9 @@ async def update_task(
         await scheduler.notify_shared_closed(task, actor_id=actor_id)
     elif not was_completed and task.is_completed:
         await scheduler.notify_done_for_author(task, actor_id=actor_id)
-    if handed_over and actor_id is not None and task.owner_id != actor_id and not task.is_shared:
+    became_shared = task.is_shared and not shared_before
+    given_away = handed_over and not task.is_shared and task.owner_id != actor_id
+    if actor_id is not None and (became_shared or given_away):
         await scheduler.notify_assigned(task, actor_id=actor_id)
     return task
 

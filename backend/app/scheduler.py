@@ -172,8 +172,15 @@ async def notify_assigned(task: Task, actor_id: int | None) -> None:
     if not task.is_shared and other not in (task.owner_id, task.assigned_to_id):
         return
     header = f"⚡️ <b>{escape(author)}</b> додає спільну задачу" if task.is_shared else f"📌 Задача для тебе від <b>{escape(author)}</b>"
+    from app.bot.keyboards import webapp_keyboard
+    from app.config import get_settings
+
     try:
-        await _bot.send_message(chat_id=other, text=f"{header}\n\n{task_details(task)}")
+        await _bot.send_message(
+            chat_id=other,
+            text=f"{header}\n\n{task_details(task)}",
+            reply_markup=webapp_keyboard(get_settings().webapp_url),
+        )
     except Exception:
         logger.exception("Could not tell %s about task %s", other, task.id)
 
