@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
 import { useAppUpdates } from "@/hooks/useAppUpdates";
+import { TimerContext, useTimer } from "@/hooks/useTimer";
 import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS, usersApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -27,6 +28,7 @@ import { CalendarBoard } from "./CalendarBoard";
 import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
+import { TimerDock } from "./TimerDock";
 import { AudiencePills, FilterPills } from "./FilterPills";
 import { SettingsBlock } from "./SettingsBlock";
 import { TaskList } from "./TaskList";
@@ -51,6 +53,7 @@ export function HomePage() {
   const [slot, setSlot] = useState<TaskSlot | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
+  const timerControls = useTimer({ enabled: isReady || USE_MOCKS, onSettled: () => void reload({ silent: true }) });
   const [couple, setCouple] = useState<Couple>(USE_MOCKS ? MOCK_COUPLE : { meId: null, partnerName: "Партнер" });
   useAppUpdates(sheetOpen || feedsOpen);
 
@@ -107,7 +110,14 @@ export function HomePage() {
 
   return (
     <CoupleContext.Provider value={couple}>
-    <main className={cn("relative mx-auto min-h-dvh px-5 pb-28 pt-6", view === "calendar" ? "max-w-3xl" : "max-w-lg")}>
+    <TimerContext.Provider value={timerControls}>
+    <main
+      className={cn(
+        "relative mx-auto min-h-dvh px-5 pt-6 transition-[padding] duration-300",
+        timerControls.timer || timerControls.finished ? "pb-40" : "pb-28",
+        view === "calendar" ? "max-w-3xl" : "max-w-lg",
+      )}
+    >
       <DashboardHeader
         firstName={firstName}
         done={progress.done}
@@ -168,6 +178,7 @@ export function HomePage() {
       )}
 
       <Fab hidden={sheetOpen} onClick={() => openSheet(null)} />
+      <TimerDock controls={timerControls} />
       <AddTaskSheet
         open={sheetOpen}
         slot={slot}
@@ -184,6 +195,7 @@ export function HomePage() {
         onChanged={() => void reload({ silent: true })}
       />
     </main>
+    </TimerContext.Provider>
     </CoupleContext.Provider>
   );
 }

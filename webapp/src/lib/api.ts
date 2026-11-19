@@ -1,5 +1,5 @@
 import { getInitData } from "./telegram";
-import type { CalendarFeed, CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
+import type { CalendarFeed, CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate, Timer, TimerKind } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false" || !API_URL;
@@ -48,6 +48,15 @@ export const tasksApi = {
   remove(id: number) {
     return request<void>(`/tasks/${id}`, { method: "DELETE" });
   },
+};
+
+export const timerApi = {
+  current: () => request<Timer | null>("/tasks/timer"),
+  start: (taskId: number, minutes: number, kind: TimerKind = "focus") =>
+    request<Timer>("/tasks/timer", { method: "POST", body: JSON.stringify({ task_id: taskId, minutes, kind }) }),
+  pause: () => request<Timer>("/tasks/timer/pause", { method: "POST" }),
+  resume: () => request<Timer>("/tasks/timer/resume", { method: "POST" }),
+  stop: () => request<void>("/tasks/timer/stop", { method: "POST" }),
 };
 
 export const calendarApi = {

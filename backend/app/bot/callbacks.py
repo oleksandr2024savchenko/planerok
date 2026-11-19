@@ -18,6 +18,19 @@ class ReminderCallback(CallbackData, prefix="rem"):
     task_id: int
 
 
+class TimerAction(StrEnum):
+    BREAK = "brk"  # start a break of `minutes`
+    FOCUS = "go"  # start another focus session of `minutes`
+    DONE = "done"  # mark the task done
+    LATER = "later"  # just hide the buttons
+
+
+class TimerCallback(CallbackData, prefix="tmr"):
+    action: TimerAction
+    task_id: int
+    minutes: int = 0
+
+
 class TaskAction(StrEnum):
     EDIT_TIME = "time"
     DELETE = "del"

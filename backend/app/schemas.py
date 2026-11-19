@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -97,6 +98,7 @@ class TaskRead(BaseModel):
     owner_id: int | None = None
     assigned_to_id: int | None = None
     created_by_id: int | None = None
+    focused_seconds: int = 0
     created_at: datetime
     read_only: bool = False
     all_day: bool = False
@@ -136,3 +138,23 @@ class CalendarStatusRead(BaseModel):
     def _serialize_last_sync(self, value: datetime | None) -> str | None:
         localized = _to_vienna(value)
         return localized.isoformat() if localized else None
+
+
+class TimerStart(BaseModel):
+    task_id: int
+    minutes: int = Field(ge=1, le=8 * 60)
+    kind: Literal["focus", "break"] = "focus"
+
+
+class TimerRead(BaseModel):
+    """The live timer, with the server's own clock so the Mini App can count down without drift."""
+
+    id: int
+    task_id: int
+    task_title: str
+    kind: str
+    status: str
+    duration_seconds: int
+    remaining_seconds: int
+    task_focused_seconds: int
+    server_now: datetime

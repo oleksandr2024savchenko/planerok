@@ -43,6 +43,16 @@ def task_details(task: Task) -> str:
     return "\n".join(lines)
 
 
+def format_minutes(seconds: int) -> str:
+    minutes = max(int(round(seconds / 60)), 0)
+    hours, rest = divmod(minutes, 60)
+    if hours and rest:
+        return f"{hours} год {rest:02d} хв"
+    if hours:
+        return f"{hours} год"
+    return f"{rest} хв"
+
+
 def reminder_text(task: Task, *, nag_count: int = 0, nagging: bool = False) -> str:
     if nag_count > 0:
         header = f"🔥 <b>Додовбувач</b> · нагадую вже {nag_count + 1}-й раз"

@@ -58,10 +58,30 @@ class Task(Base):
     # Cursor of the Google sync that last wrote this row. The calendar-level token lives on GoogleCalendarState.
     sync_token: Mapped[str | None] = mapped_column(Text)
     is_completed: Mapped[bool] = mapped_column(default=False, server_default=false())
+    # Time actually spent in finished focus sessions on this task.
+    focused_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self) -> str:
         return f"Task(id={self.id!r}, title={self.title!r})"
+
+
+class TaskTimer(Base):
+    """A focus session or a break, run by one person on one task. At most one is live per person."""
+
+    __tablename__ = "task_timers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="focus")  # focus | break
+    status: Mapped[str] = mapped_column(String(16), default="running")  # running | paused | done | stopped
+    duration_seconds: Mapped[int] = mapped_column(Integer)
+    # Time counted before the current run; the live part is now - running_since.
+    elapsed_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    running_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ExternalCalendar(Base):

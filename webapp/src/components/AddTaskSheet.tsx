@@ -14,6 +14,7 @@ import { haptic } from "@/lib/telegram";
 import { SheetBackdrop, SheetPanel } from "./Sheet";
 import { CATEGORIES, type Category, type Priority, type Task, type TaskCreate, type TaskUpdate } from "@/lib/types";
 
+import { FocusStarter } from "./FocusStarter";
 import { ReminderPicker } from "./ReminderPicker";
 import { Reveal } from "./Reveal";
 
@@ -248,6 +249,7 @@ export function AddTaskSheet({
                 </div>
               ) : (
               <>
+              {task && <FocusStarter task={task} onStarted={onClose} />}
               <label className="block space-y-1.5">
                 <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">Назва</span>
                 <input

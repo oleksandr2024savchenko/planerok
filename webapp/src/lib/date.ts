@@ -140,3 +140,13 @@ export function greeting(): string {
   if (hour < 18) return "Доброго дня";
   return "Доброго вечора";
 }
+
+/** 1200 → «20 хв», 3900 → «1 год 05 хв». */
+export function formatDuration(seconds: number): string {
+  const minutes = Math.max(Math.round(seconds / 60), 0);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours && rest) return `${hours} год ${String(rest).padStart(2, "0")} хв`;
+  if (hours) return `${hours} год`;
+  return `${rest} хв`;
+}

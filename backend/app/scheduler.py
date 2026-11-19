@@ -91,6 +91,57 @@ def schedule_reminder(
     logger.info("Reminder for task %s scheduled at %s", task_id, run_at.astimezone(TIMEZONE))
 
 
+def _timer_job_id(timer_id: int) -> str:
+    return f"task-timer:{timer_id}"
+
+
+def schedule_timer(timer_id: int, run_at_ts: float) -> None:
+    scheduler.add_job(
+        finish_timer,
+        trigger=DateTrigger(run_date=datetime.fromtimestamp(run_at_ts, TIMEZONE), timezone=TIMEZONE),
+        id=_timer_job_id(timer_id),
+        args=[timer_id],
+        replace_existing=True,
+        misfire_grace_time=6 * 60 * 60,
+    )
+
+
+def cancel_timer(timer_id: int) -> None:
+    try:
+        scheduler.remove_job(_timer_job_id(timer_id))
+    except JobLookupError:
+        pass
+
+
+async def finish_timer(timer_id: int) -> None:
+    """APScheduler job: the session is over. Credit the time and offer a break or another round."""
+    from app.bot.keyboards import break_done_keyboard, focus_done_keyboard
+    from app.bot.texts import format_minutes
+    from app.services import timers
+
+    async with session_factory() as session:
+        timer = await timers.finish(session, timer_id)
+        if timer is None:
+            return
+        task = await session.get(Task, timer.task_id)
+    if _bot is None or task is None:
+        return
+    minutes = max(timer.duration_seconds // 60, 1)
+    if timer.kind == timers.FOCUS:
+        text = (
+            f"✅ <b>{minutes} хв фокусу</b> на «{escape(task.title)}» позаду.\n"
+            f"Разом на задачу: {format_minutes(task.focused_seconds)}. Час на перерву?"
+        )
+        markup = focus_done_keyboard(task.id, minutes)
+    else:
+        text = f"☕ Перерва скінчилась. Повертаємось до «{escape(task.title)}»?"
+        markup = break_done_keyboard(task.id)
+    try:
+        await _bot.send_message(chat_id=timer.user_id, text=text, reply_markup=markup)
+    except Exception:
+        logger.exception("Could not send the timer note for %s", timer_id)
+
+
 def cancel_reminder(task_id: int) -> None:
     try:
         scheduler.remove_job(_job_id(task_id))

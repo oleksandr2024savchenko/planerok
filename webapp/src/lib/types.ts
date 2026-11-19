@@ -20,6 +20,8 @@ export interface Task {
   owner_id?: number | null;
   assigned_to_id?: number | null;
   created_by_id?: number | null;
+  /** Seconds spent in finished focus sessions. */
+  focused_seconds?: number;
   created_at: string;
   read_only?: boolean;
   all_day?: boolean;
@@ -62,3 +64,18 @@ export type TaskScope = "today" | "upcoming" | "all";
 
 export const CATEGORIES = ["робота", "навчання", "тренування", "особисте"] as const;
 export type Category = (typeof CATEGORIES)[number];
+
+export type TimerKind = "focus" | "break";
+
+/** Mirrors `TimerRead`: the one live timer of the current person. */
+export interface Timer {
+  id: number;
+  task_id: number;
+  task_title: string;
+  kind: TimerKind;
+  status: "running" | "paused";
+  duration_seconds: number;
+  remaining_seconds: number;
+  task_focused_seconds: number;
+  server_now: string;
+}

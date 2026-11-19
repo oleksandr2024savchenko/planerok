@@ -5,7 +5,8 @@ import { Bell, Calendar, Check } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { assigneeOf, isFromPartner, useCouple } from "@/lib/couple";
-import { formatDay, formatTime } from "@/lib/date";
+import { useTimerControls } from "@/hooks/useTimer";
+import { formatDay, formatDuration, formatTime } from "@/lib/date";
 import { isOverdue } from "@/lib/filters";
 import { shortOffset } from "@/lib/reminders";
 import { haptic } from "@/lib/telegram";
@@ -21,6 +22,8 @@ interface TaskCardProps {
 
 export function TaskCard({ task, onToggle, onOpen }: TaskCardProps) {
   const { meId, partnerName } = useCouple();
+  const timerControls = useTimerControls();
+  const timerHere = timerControls?.timer?.task_id === task.id ? timerControls.timer : null;
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
   const when = task.start_time ?? task.deadline;
@@ -80,6 +83,15 @@ export function TaskCard({ task, onToggle, onOpen }: TaskCardProps) {
                 Спільне
               </span>
             )}
+            {timerHere ? (
+              <span className="rounded-full bg-purple-500/15 px-2 py-0.5 font-medium text-purple-200">
+                ⏱ {timerHere.kind === "break" ? "перерва" : timerHere.status === "paused" ? "на паузі" : "фокус іде"}
+              </span>
+            ) : (task.focused_seconds ?? 0) >= 60 ? (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-zinc-300">
+                ⏱ {formatDuration(task.focused_seconds ?? 0)}
+              </span>
+            ) : null}
             {assigneeOf(task, meId) === "partner" && (
               <span className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 font-medium text-fuchsia-200">
                 Робить: {partnerName}

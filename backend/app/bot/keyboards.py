@@ -7,6 +7,8 @@ from app.bot.callbacks import (
     ReminderOffsetCallback,
     TaskAction,
     TaskActionCallback,
+    TimerAction,
+    TimerCallback,
 )
 from app.services.reminders import PRESET_OFFSETS, format_offset
 
@@ -96,6 +98,34 @@ def reminder_keyboard(task_id: int) -> InlineKeyboardMarkup:
         builder.button(text=text, callback_data=ReminderCallback(action=action, task_id=task_id))
     builder.button(text="❌ Скасувати", callback_data=ReminderCallback(action=ReminderAction.CANCEL, task_id=task_id))
     builder.adjust(1, 3, 1)
+    return builder.as_markup()
+
+
+def focus_done_keyboard(task_id: int, minutes: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for rest in (5, 10):
+        builder.button(
+            text=f"☕ Перерва {rest} хв",
+            callback_data=TimerCallback(action=TimerAction.BREAK, task_id=task_id, minutes=rest),
+        )
+    builder.button(
+        text=f"▶️ Ще {minutes} хв",
+        callback_data=TimerCallback(action=TimerAction.FOCUS, task_id=task_id, minutes=minutes),
+    )
+    builder.button(text="✅ Задачу виконано", callback_data=TimerCallback(action=TimerAction.DONE, task_id=task_id))
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def break_done_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for minutes in (20, 25, 40):
+        builder.button(
+            text=f"▶️ {minutes} хв",
+            callback_data=TimerCallback(action=TimerAction.FOCUS, task_id=task_id, minutes=minutes),
+        )
+    builder.button(text="Пізніше", callback_data=TimerCallback(action=TimerAction.LATER, task_id=task_id))
+    builder.adjust(3, 1)
     return builder.as_markup()
 
 
