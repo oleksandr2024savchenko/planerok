@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import shutil
@@ -17,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.config import TIMEZONE, get_settings
 from app.models import Priority
 from app.schemas import TaskCreate, _to_vienna
+from app.services.reminders import MAX_OFFSET_MINUTES, remind_at_for
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,31 @@ class ParsedTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: datetime | None = Field(default=None, description="Event/due time as ISO 8601.")
     remind_at: datetime | None = Field(default=None, description="Reminder time as ISO 8601.")
+    is_shared: bool = Field(
+        default=False,
+        description="True when the task is for both partners: нам, разом, спільне.",
+    )
+    for_partner: bool = Field(
+        default=False,
+        description="True when the task is for the partner, not a shared one.",
+    )
+    remind_before_minutes: int | None = Field(
+        default=None,
+        ge=0,
+        le=MAX_OFFSET_MINUTES,
+        description="Reminder offset before the event in minutes, e.g. 1440 for «за день до».",
+    )
+
+    @field_validator("remind_before_minutes", mode="before")
+    @classmethod
+    def _blank_offset(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        if isinstance(value, (int, float)):
+            if value < 0:
+                return None
+            return min(int(value), MAX_OFFSET_MINUTES)
+        return value
 
     @field_validator("category", mode="before")
     @classmethod
@@ -113,6 +140,12 @@ class _GeminiTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
     remind_at: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
+    is_shared: bool = Field(default=False, description="True for нам, разом, спільне.")
+    for_partner: bool = Field(default=False, description="True when the task is only for the partner.")
+    remind_before_minutes: int | None = Field(
+        default=None,
+        description="Minutes before the event to remind (1440 = one day before), or null.",
+    )
 
 
 class _GeminiExtraction(BaseModel):
@@ -131,14 +164,20 @@ def build_system_prompt(now: datetime | None = None) -> str:
         "Правила:\n"
         "- title: коротка назва без «нагадай мені», «треба зробити», «не забудь».\n"
         "- category: work / study / training / personal за змістом.\n"
-        "- priority: high якщо сьогодні або «терміново», інакше medium; low для нечітких бажань.\n"
+        "- priority: high лише якщо прямо сказано «терміново», «дуже важливо», «обов'язково», «не дай забути» "
+        "чи «додовбуй» — high вмикає нагадування кожні кілька хвилин; інакше medium; low для нечітких бажань.\n"
         "- deadline і remind_at — ISO 8601 з часовим поясом Vienna.\n"
         "- Відносні дати («завтра», «через 2 години», «у п'ятницю о 18:00») рахуй від поточного часу вище.\n"
         "- Якщо названо час події, але не час нагадування: remind_at = за 15 хвилин до deadline.\n"
         "- Якщо названо лише час нагадування — запиши його в remind_at і deadline.\n"
+        "- Якщо нагадування задано відносно події («нагадай за день», «за 2 години до», «за тиждень») — "
+        "remind_before_minutes = кількість хвилин (година=60, день=1440, тиждень=10080), remind_at = null.\n"
         "- Кілька справ в одному повідомленні → кілька елементів у tasks.\n"
+        "- is_shared=true, якщо звучить «нам», «разом», «спільне», «ми», «обом».\n"
+        "- for_partner=true, якщо справа лише для партнера чи партнерки («їй», «йому», «для неї», «для нього», "
+        "«дівчині», «хлопцю», «коханій», «коханому», «нехай він/вона…»), і тоді is_shared=false.\n"
         "- Якщо завдань немає, поверни порожній список tasks.\n"
-        '- Відповідь — лише JSON {"tasks":[{"title","description","category","priority","deadline","remind_at"}]}.'
+        "- Відповідь — лише JSON {\"tasks\":[{\"title\",\"description\",\"category\",\"priority\",\"deadline\",\"remind_at\",\"remind_before_minutes\",\"is_shared\",\"for_partner\"}]}."
     )
 
 
@@ -147,10 +186,16 @@ def finalize_task(task: ParsedTask, now: datetime | None = None) -> ParsedTask:
     now = (now or datetime.now(TIMEZONE)).astimezone(TIMEZONE)
     deadline = _to_vienna(task.deadline)
     remind_at = _to_vienna(task.remind_at)
-    if deadline is not None and remind_at is None:
+    offset = task.remind_before_minutes
+    if offset is not None and deadline is None:
+        offset = None
+    if offset is not None:
+        # A relative reminder wins over any absolute time the model echoed back.
+        remind_at = remind_at_for(None, deadline, offset)
+    elif deadline is not None and remind_at is None:
         if deadline.time() not in (_END_OF_DAY, time(0, 0)):
             remind_at = deadline - timedelta(minutes=15)
-    return task.model_copy(update={"deadline": deadline, "remind_at": remind_at})
+    return task.model_copy(update={"deadline": deadline, "remind_at": remind_at, "remind_before_minutes": offset})
 
 
 def to_task_create(task: ParsedTask) -> TaskCreate:
@@ -160,8 +205,30 @@ def to_task_create(task: ParsedTask) -> TaskCreate:
         category=CATEGORY_SLUGS[task.category],
         priority=Priority(task.priority),
         deadline=task.deadline,
-        remind_at=task.remind_at,
+        remind_at=None if task.remind_before_minutes is not None else task.remind_at,
+        remind_before_minutes=task.remind_before_minutes,
+        is_shared=task.is_shared,
+        for_partner=task.for_partner and not task.is_shared,
     )
+
+
+_SHARED_MARKERS = (" нам ", " разом", "спільн", " обом", " ми ")
+_PARTNER_MARKERS = ("їй", "для неї", "дівчин", "партнерц")
+
+
+def apply_audience(tasks: list[ParsedTask], text: str | None) -> list[ParsedTask]:
+    """Trust explicit couple wording over a model that forgot the flags."""
+    if not text or not tasks:
+        return tasks
+    folded = f" {text.lower()} "
+    shared = any(marker in folded for marker in _SHARED_MARKERS)
+    partner = any(marker in folded for marker in _PARTNER_MARKERS)
+    if not shared and not partner:
+        return tasks
+    return [
+        task.model_copy(update={"is_shared": shared, "for_partner": partner and not shared})
+        for task in tasks
+    ]
 
 
 @lru_cache
@@ -214,6 +281,24 @@ def _safe_error(exc: BaseException) -> str:
     return text[:500]
 
 
+_TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
+_TRANSIENT_STATUSES = {"UNAVAILABLE", "INTERNAL", "DEADLINE_EXCEEDED", "RESOURCE_EXHAUSTED"}
+# Pauses between tries of the same request when Gemini is busy or slow.
+RETRY_DELAYS = (1.5, 4.0)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """Overload, rate limit, timeout or a dropped connection: worth trying again."""
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError)):
+        return True
+    if getattr(exc, "code", None) in _TRANSIENT_CODES:
+        return True
+    if str(getattr(exc, "status", "") or "") in _TRANSIENT_STATUSES:
+        return True
+    name = type(exc).__name__
+    return any(part in name for part in ("Timeout", "Connect", "RemoteProtocol", "ReadError"))
+
+
 def _failure_message(exc: BaseException) -> str:
     code = getattr(exc, "code", None)
     status = str(getattr(exc, "status", "") or "")
@@ -223,7 +308,10 @@ def _failure_message(exc: BaseException) -> str:
         return "Ліміт Gemini вичерпано. Спробуй трохи пізніше."
     if code == 404 or status == "NOT_FOUND":
         return "Модель Gemini недоступна. Перевір GEMINI_MODEL."
-    return "Не вдалося розпізнати повідомлення"
+    if _is_transient(exc):
+        return "Gemini зараз не відповідає. Спробуй ще раз за хвилину."
+    detail = code or type(exc).__name__
+    return f"Не вдалося розпізнати повідомлення (Gemini: {detail})"
 
 
 def _is_rejected_request(exc: BaseException) -> bool:
@@ -299,6 +387,38 @@ async def _generate(
     now: datetime,
     schema: type[BaseModel] | None,
 ) -> object:
+    """One request, retried while Gemini is busy, then once on the fallback model if set."""
+    settings = get_settings()
+    models = [settings.gemini_model]
+    if settings.gemini_fallback_model and settings.gemini_fallback_model != settings.gemini_model:
+        models.append(settings.gemini_fallback_model)
+    last: BaseException | None = None
+    for model in models:
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            try:
+                return await asyncio.wait_for(
+                    _generate_once(parts, now, schema, model),
+                    timeout=settings.gemini_timeout_seconds,
+                )
+            except Exception as exc:
+                last = exc
+                if not _is_transient(exc):
+                    raise
+                logger.warning(
+                    "Gemini %s busy (try %s): %s", model, attempt + 1, _safe_error(exc) or type(exc).__name__
+                )
+                if attempt < len(RETRY_DELAYS):
+                    await asyncio.sleep(RETRY_DELAYS[attempt])
+    assert last is not None
+    raise last
+
+
+async def _generate_once(
+    parts: list[types.Part | str],
+    now: datetime,
+    schema: type[BaseModel] | None,
+    model: str,
+) -> object:
     config_kwargs: dict[str, object] = {
         "system_instruction": build_system_prompt(now),
         "temperature": 0.1,
@@ -307,7 +427,7 @@ async def _generate(
     if schema is not None:
         config_kwargs["response_schema"] = schema
     return await _client().aio.models.generate_content(
-        model=get_settings().gemini_model,
+        model=model,
         contents=parts,
         config=types.GenerateContentConfig(**config_kwargs),
     )

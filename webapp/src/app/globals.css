@@ -7,7 +7,11 @@
 
 :root {
   color-scheme: dark;
-  --void: #09090b;
+  --void: #12061f;
+  --accent: #d8b4fe;
+  --accent-strong: #9333ea;
+  --accent-glow: rgba(147, 51, 234, 0.62);
+  --panel: rgba(36, 16, 72, 0.94);
 }
 
 html,
@@ -17,15 +21,321 @@ body {
 
 body {
   min-height: 100dvh;
-  background-image: radial-gradient(ellipse 80% 50% at 50% -8%, rgba(168, 85, 247, 0.22), transparent 62%);
+  background-image:
+    radial-gradient(ellipse 90% 42% at 50% -12%, rgba(88, 28, 176, 0.55), transparent 60%),
+    radial-gradient(circle at 6% 26%, rgba(76, 29, 149, 0.32), transparent 26%),
+    radial-gradient(circle at 96% 14%, rgba(109, 40, 217, 0.26), transparent 22%),
+    radial-gradient(ellipse 70% 36% at 50% 112%, rgba(59, 18, 112, 0.55), transparent 58%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
 }
 
+html[data-theme="violet"] body > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme="violet"] body::before,
+html[data-theme="violet"] body::after {
+  content: "✦";
+  pointer-events: none;
+  position: fixed;
+  z-index: 0;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: rgba(216, 180, 254, 0.55);
+  text-shadow: 0 0 18px rgba(192, 132, 252, 0.95);
+}
+
+html[data-theme="violet"] body::before {
+  top: 22%;
+  right: -0.15rem;
+  opacity: 0.9;
+}
+
+html[data-theme="violet"] body::after {
+  content: "✧";
+  left: -0.2rem;
+  right: auto;
+  bottom: 24%;
+  font-size: 3rem;
+  color: rgba(216, 180, 254, 0.66);
+}
+
+html[data-theme="violet"] .bg-zinc-900\/60,
+html[data-theme="violet"] .bg-zinc-900\/70,
+html[data-theme="violet"] .bg-zinc-900\/80,
+html[data-theme="violet"] .bg-zinc-900\/50,
+html[data-theme="violet"] .bg-zinc-950\/40,
+html[data-theme="violet"] .bg-zinc-950\/50,
+html[data-theme="violet"] .bg-zinc-950\/95,
+html[data-theme="violet"] .bg-zinc-900,
+html[data-theme="violet"] .bg-zinc-800,
+html[data-theme="violet"] .bg-zinc-800\/80,
+html[data-theme="violet"] .bg-zinc-700,
+html[data-theme="violet"] .bg-black\/30 {
+  background-color: var(--panel);
+}
+
+html[data-theme="violet"] .bg-black\/60 {
+  background-color: rgba(42, 12, 78, 0.58);
+}
+
+html[data-theme="violet"] .border-white\/5,
+html[data-theme="violet"] .border-white\/10 {
+  border-color: rgba(196, 160, 255, 0.24);
+}
+
+.theme-flower,
+.theme-star {
+  display: none;
+  position: fixed;
+  z-index: 0;
+  line-height: 1;
+  font-size: 2rem;
+}
+
+html[data-theme="violet"] .theme-star {
+  display: block;
+  color: rgba(216, 180, 254, 0.45);
+  text-shadow: 0 0 12px rgba(147, 51, 234, 0.8);
+}
+
+/*
+ * Pink theme (729424163): light pastel pink with neon-pink accents and SVG flowers.
+ * Components keep their dark-theme classes; this block repaints them for a light page.
+ */
+html[data-theme="pink"] {
+  color-scheme: light;
+  --void: #fff0f7;
+  --accent: #c8006c;
+  --accent-strong: #ff2e97;
+  --accent-glow: rgba(255, 46, 151, 0.45);
+  --panel: rgba(255, 255, 255, 0.82);
+
+  /* Text greys flip into berry tones, readable on the light page. */
+  --color-zinc-50: #4d1039;
+  --color-zinc-100: #4d1039;
+  --color-zinc-200: #6b2253;
+  --color-zinc-300: #7f2d61;
+  --color-zinc-400: #9c4579;
+  --color-zinc-500: #b65a8f;
+  --color-zinc-600: #d98ab2;
+  --color-zinc-700: #fbc4de;
+}
+
+html[data-theme="pink"] body {
+  background-color: var(--void);
+  background-image:
+    radial-gradient(ellipse 80% 45% at 50% -6%, rgba(255, 46, 151, 0.22), transparent 62%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(255, 160, 214, 0.35), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 0% 60%, rgba(255, 199, 230, 0.45), transparent 70%);
+}
+
+html[data-theme="pink"] body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glass surfaces become frosted white. */
+html[data-theme="pink"] .bg-zinc-900\/60,
+html[data-theme="pink"] .bg-zinc-900\/70,
+html[data-theme="pink"] .bg-zinc-900\/80,
+html[data-theme="pink"] .bg-zinc-900\/50,
+html[data-theme="pink"] .bg-zinc-950\/40,
+html[data-theme="pink"] .bg-zinc-950\/50,
+html[data-theme="pink"] .bg-zinc-950\/95,
+html[data-theme="pink"] .bg-zinc-900,
+html[data-theme="pink"] .bg-zinc-800,
+html[data-theme="pink"] .bg-zinc-800\/80,
+html[data-theme="pink"] .bg-black\/30,
+html[data-theme="pink"] .bg-white\/\[0\.04\] {
+  background-color: var(--panel);
+}
+
+html[data-theme="pink"] .bg-zinc-950\/95 {
+  background-color: rgba(255, 240, 247, 0.97);
+}
+
+html[data-theme="pink"] .bg-zinc-800\/80 {
+  background-color: #ffe0ef;
+}
+
+html[data-theme="pink"] .bg-white\/10,
+html[data-theme="pink"] .bg-white\/15,
+html[data-theme="pink"] .hover\:bg-white\/5:hover,
+html[data-theme="pink"] .hover\:bg-white\/10:hover {
+  background-color: rgba(255, 95, 174, 0.14);
+}
+
+html[data-theme="pink"] .bg-black\/60 {
+  background-color: rgba(90, 22, 65, 0.42);
+}
+
+html[data-theme="pink"] .border-white\/5,
+html[data-theme="pink"] .border-white\/10,
+html[data-theme="pink"] .hover\:border-white\/20:hover {
+  border-color: rgba(255, 95, 174, 0.28);
+}
+
+/* Neon pink accents. */
+html[data-theme="pink"] .bg-purple-600,
+html[data-theme="pink"] .bg-purple-500,
+html[data-theme="pink"] .bg-purple-400,
+html[data-theme="pink"] .bg-fuchsia-500,
+html[data-theme="pink"] .bg-fuchsia-400,
+html[data-theme="pink"] .hover\:bg-purple-500:hover {
+  background-color: #ff2e97;
+}
+
+html[data-theme="pink"] .bg-purple-500\/10,
+html[data-theme="pink"] .bg-purple-500\/15,
+html[data-theme="pink"] .bg-purple-500\/20,
+html[data-theme="pink"] .bg-purple-500\/25,
+html[data-theme="pink"] .bg-purple-950\/40,
+html[data-theme="pink"] .bg-fuchsia-500\/15,
+html[data-theme="pink"] .hover\:bg-purple-500\/15:hover,
+html[data-theme="pink"] .hover\:bg-purple-500\/\[0\.06\]:hover {
+  background-color: rgba(255, 46, 151, 0.12);
+}
+
+/* The "shared" toggle keeps white text, so its active state needs a solid neon fill. */
+html[data-theme="pink"] .bg-fuchsia-500\/20 {
+  background-color: #ff2e97;
+}
+
+html[data-theme="pink"] .border-purple-400,
+html[data-theme="pink"] .border-purple-500,
+html[data-theme="pink"] .border-purple-500\/20,
+html[data-theme="pink"] .border-purple-500\/30,
+html[data-theme="pink"] .border-purple-500\/40,
+html[data-theme="pink"] .border-purple-500\/50,
+html[data-theme="pink"] .border-fuchsia-300\/80,
+html[data-theme="pink"] .hover\:border-purple-500\/30:hover,
+html[data-theme="pink"] .hover\:border-purple-500\/40:hover,
+html[data-theme="pink"] .hover\:border-purple-500\/50:hover,
+html[data-theme="pink"] .focus\:border-purple-500\/50:focus {
+  border-color: rgba(255, 46, 151, 0.55);
+}
+
+html[data-theme="pink"] .text-purple-100,
+html[data-theme="pink"] .text-purple-200,
+html[data-theme="pink"] .text-purple-200\/80,
+html[data-theme="pink"] .text-purple-300,
+html[data-theme="pink"] .text-purple-300\/90,
+html[data-theme="pink"] .text-fuchsia-200,
+html[data-theme="pink"] .text-fuchsia-400 {
+  color: #c8006c;
+}
+
+html[data-theme="pink"] .text-fuchsia-100\/80 {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+html[data-theme="pink"] .from-violet-600,
+html[data-theme="pink"] .from-purple-600\/20 {
+  --tw-gradient-from: #ff2e97;
+}
+
+html[data-theme="pink"] .from-purple-600\/20 {
+  --tw-gradient-from: rgba(255, 46, 151, 0.16);
+}
+
+html[data-theme="pink"] .via-violet-600\/5 {
+  --tw-gradient-via: rgba(255, 160, 214, 0.12);
+}
+
+html[data-theme="pink"] .to-fuchsia-500 {
+  --tw-gradient-to: #ff7cc8;
+}
+
+html[data-theme="pink"] [class^="shadow-[0_0_"],
+html[data-theme="pink"] [class*=" shadow-[0_0_"],
+html[data-theme="pink"] [class*="hover:shadow-[0_0_"]:hover {
+  --tw-shadow: 0 0 16px rgba(255, 46, 151, 0.35);
+  box-shadow: var(--tw-shadow);
+}
+
+html[data-theme="pink"] [class*="shadow-[0_-20px_80px"],
+html[data-theme="pink"] [class*="shadow-[0_20px_60px"] {
+  box-shadow: 0 -12px 60px rgba(214, 51, 132, 0.22);
+}
+
+html[data-theme="pink"] ::selection {
+  background: rgba(255, 46, 151, 0.3);
+  color: #4d1039;
+}
+
+html[data-theme="pink"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="pink"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(32%) sepia(90%) saturate(3000%) hue-rotate(305deg);
+}
+
+/* Flowers: SVG decor and touches that only the pink theme shows. */
+.pink-only {
+  display: none;
+}
+
+html[data-theme="pink"] .pink-only {
+  display: revert;
+}
+
+html[data-theme="pink"] .not-pink {
+  display: none;
+}
+
+@keyframes flower-drift {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-14px) rotate(calc(var(--r, 0deg) + 18deg)); }
+}
+
+@keyframes flower-pop {
+  0% { transform: scale(0.4) rotate(-30deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.flower-float {
+  animation: flower-drift var(--d, 9s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  /* Own GPU layer: the drop-shadow is drawn once, the drift only moves the layer. */
+  will-change: transform;
+}
+
+/* While a sheet is open the flowers hold still, so the 60 Hz phone spends its frames on the sheet. */
+.sheet-open .flower-float {
+  animation-play-state: paused;
+}
+
+/* Bottom sheets. Only the violet (120 Hz) account gets a live blur behind the sheet; the pink
+   (60 Hz) one gets a plain dim, because re-blurring the page every frame is what drops frames. */
+html[data-theme="violet"] .sheet-backdrop {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.sheet-surface {
+  contain: layout paint;
+}
+
+/* Without a live blur the sheet must hide the page by itself: near-solid in both themes. */
+html[data-theme="violet"] .sheet-surface {
+  background-color: rgba(36, 16, 72, 0.985);
+}
+
+html[data-theme="pink"] .sheet-surface {
+  background-color: #fff3f9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flower-float {
+    animation: none;
+  }
+}
+
 ::selection {
-  background: rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.4);
   color: #fafafa;
 }
 
@@ -34,6 +344,88 @@ input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7) sepia(1) saturate(4) hue-rotate(225deg);
   opacity: 0.8;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+  transition-property: color, background-color, border-color, box-shadow, opacity, scale;
+  transition-duration: 320ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A gentle squeeze under the finger, released with the same soft curve. */
+button:not(:disabled):active,
+.press:not(:disabled):active {
+  scale: 0.97;
+  transition-duration: 120ms;
+}
+
+/* The page fades between themes instead of flashing when /me picks the pink one. */
+html,
+body {
+  transition: background-color 600ms cubic-bezier(0.22, 1, 0.36, 1), color 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+fieldset {
+  min-inline-size: 0;
+}
+
+input,
+textarea,
+select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+@utility field-focus {
+  &:focus {
+    border-color: var(--accent-strong);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+}
+
+@utility event-block {
+  border-left-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent-strong) 34%, transparent);
+  color: var(--accent);
+}
+
+@utility choice-fill {
+  background-color: var(--accent-strong);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.32),
+    0 0 16px var(--accent-glow);
 }
 
 @utility no-scrollbar {

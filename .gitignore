@@ -25,3 +25,4 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
+webapp/public/version.json

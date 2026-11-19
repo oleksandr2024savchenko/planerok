@@ -1,0 +1,13 @@
+[Unit]
+Description=Planer: pull new commits and rebuild changed containers
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/planer
+Environment=DEPLOY_BRANCH=claude/great-gates-uwg8kl
+ExecStart=/home/ubuntu/planer/deploy/auto-deploy.sh
+# A full image build can take a few minutes.
+TimeoutStartSec=20min

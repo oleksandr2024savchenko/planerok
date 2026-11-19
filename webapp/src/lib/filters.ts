@@ -1,7 +1,22 @@
+import { assigneeOf } from "./couple";
 import { dateKey, formatDayKey, todayKey } from "./date";
 import { CATEGORIES, type Category, type Priority, type Task } from "./types";
 
 export type FilterId = "today" | "scheduled" | "all" | `tag:${Category}`;
+export type AudienceId = "mine" | "shared" | "all";
+
+export const AUDIENCES: { id: AudienceId; label: string }[] = [
+  { id: "mine", label: "Мої" },
+  { id: "shared", label: "Спільні ⚡️" },
+  { id: "all", label: "Усі" },
+];
+
+/** «Мої» are tasks I do myself; ones I gave to the partner show only under «Усі». */
+export function matchesAudience(task: Task, audience: AudienceId, meId: number | null = null): boolean {
+  if (audience === "shared") return Boolean(task.is_shared);
+  if (audience === "mine") return assigneeOf(task, meId) === "me";
+  return true;
+}
 
 export interface FilterOption {
   id: FilterId;
@@ -25,6 +40,7 @@ export function isDueToday(task: Task, today = todayKey()): boolean {
 }
 
 export function isOverdue(task: Task, today = todayKey()): boolean {
+  if (task.read_only) return false;
   const stamp = scheduleStamp(task);
   return !task.is_completed && stamp !== null && dateKey(stamp) < today;
 }
@@ -57,9 +73,10 @@ export function sortTasks(tasks: Task[]): Task[] {
   });
 }
 
-export function todayProgress(tasks: Task[]): { done: number; total: number } {
+/** My day: tasks I gave to the partner are theirs to finish, so they do not count here. */
+export function todayProgress(tasks: Task[], meId: number | null = null): { done: number; total: number } {
   const today = todayKey();
-  const relevant = tasks.filter((task) => isDueToday(task, today));
+  const relevant = tasks.filter((task) => isDueToday(task, today) && assigneeOf(task, meId) !== "partner");
   return { done: relevant.filter((task) => task.is_completed).length, total: relevant.length };
 }
 

@@ -31,6 +31,14 @@ export async function initTelegram(): Promise<TelegramWebApp | null> {
   }
 }
 
+/** Paints Telegram's header and background behind the Mini App. */
+export function setSurfaceColor(color: `#${string}`) {
+  const sdk = webApp;
+  if (!sdk?.isVersionAtLeast("6.1")) return;
+  safely(() => sdk.setHeaderColor(color));
+  safely(() => sdk.setBackgroundColor(color));
+}
+
 export function getInitData(): string {
   return webApp?.initData ?? "";
 }

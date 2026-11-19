@@ -9,12 +9,18 @@ from datetime import date, datetime, time, timedelta
 
 from app.config import TIMEZONE
 from app.models import Priority
+from app.services.reminders import remind_at_for, unit_minutes
 
 _CATEGORY_RE = re.compile(r"(?<!\w)#(\w+)")
 _PRIORITY_RE = re.compile(r"(?<!\S)!(high|medium|low|!{0,2})(?!\S)", re.IGNORECASE)
 _TIME_RE = re.compile(r"(?:(?<!\w)(?:о|об|в|на|at)\s+)?(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])", re.IGNORECASE)
 _DATE_RE = re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})(?:\.(\d{2}|\d{4}))?(?![\d.])")
 _RELATIVE_DAYS = {"сьогодні": 0, "завтра": 1, "післязавтра": 2}
+# "нагадай за день", "нагадати за 2 години до", "нагадування за 30 хв"
+_OFFSET_RE = re.compile(
+    r"(?<!\w)нагада\w*\s+за\s+(?:(\d{1,3})\s*)?(хв\w*|год\w*|д(?:ень|ні|нів|ня)|доб\w*|тиж\w*)\.?(?:\s+до(?:\s+події)?)?(?!\w)",
+    re.IGNORECASE,
+)
 _RELATIVE_RE = re.compile(r"(?<!\w)(" + "|".join(_RELATIVE_DAYS) + r")(?!\w)", re.IGNORECASE)
 
 _PRIORITY_TOKENS = {
@@ -37,6 +43,7 @@ class ParsedTask:
     priority: Priority = Priority.MEDIUM
     deadline: datetime | None = None
     remind_at: datetime | None = None
+    remind_before_minutes: int | None = None
 
 
 class EmptyTitleError(ValueError):
@@ -56,6 +63,11 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
     priority = Priority.MEDIUM
     if match := _PRIORITY_RE.search(line):
         priority = _PRIORITY_TOKENS[match.group(1).lower()]
+        line = line[: match.start()] + " " + line[match.end() :]
+
+    remind_before: int | None = None
+    if match := _OFFSET_RE.search(line):
+        remind_before = _offset_minutes(match)
         line = line[: match.start()] + " " + line[match.end() :]
 
     day: date | None = None
@@ -87,6 +99,11 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
     elif day is not None:
         deadline = datetime.combine(day, END_OF_DAY, tzinfo=TIMEZONE)
 
+    if remind_before is not None and deadline is not None:
+        remind_at = remind_at_for(None, deadline, remind_before)
+    else:
+        remind_before = None
+
     return ParsedTask(
         title=title[:255],
         description=rest.strip() or None,
@@ -94,7 +111,13 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
         priority=priority,
         deadline=deadline,
         remind_at=remind_at,
+        remind_before_minutes=remind_before,
     )
+
+
+def _offset_minutes(match: re.Match[str]) -> int:
+    count = int(match.group(1)) if match.group(1) else 1
+    return count * (unit_minutes(match.group(2)) or 1)
 
 
 def _parse_date(match: re.Match[str], today: date) -> date | None:
