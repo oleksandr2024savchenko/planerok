@@ -158,3 +158,38 @@ class TimerRead(BaseModel):
     remaining_seconds: int
     task_focused_seconds: int
     server_now: datetime
+
+
+class ScheduleEvent(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    start: datetime
+    end: datetime
+    description: str | None = None
+
+    @field_validator("start", "end")
+    @classmethod
+    def _localize(cls, value: datetime) -> datetime:
+        return _to_vienna(value)  # type: ignore[return-value]
+
+
+class SchedulePdf(BaseModel):
+    file_base64: str = Field(min_length=10)
+    filename: str | None = None
+
+
+class SchedulePreview(BaseModel):
+    title: str | None
+    events: list[ScheduleEvent]
+
+
+class ScheduleImport(BaseModel):
+    events: list[ScheduleEvent] = Field(min_length=1, max_length=150)
+    assignee: Assignee = Assignee.ME
+    category: str | None = Field(default="навчання", max_length=64)
+    remind_before_minutes: int | None = Field(default=15, ge=0, le=MAX_OFFSET_MINUTES)
+    title: str | None = Field(default=None, max_length=120)
+
+
+class ScheduleImportResult(BaseModel):
+    created: int
+    skipped: int

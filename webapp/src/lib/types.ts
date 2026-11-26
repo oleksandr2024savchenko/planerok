@@ -79,3 +79,16 @@ export interface Timer {
   task_focused_seconds: number;
   server_now: string;
 }
+
+/** One event read from a timetable PDF (not saved yet). */
+export interface ScheduleEvent {
+  title: string;
+  start: string;
+  end: string;
+  description: string | null;
+}
+
+export interface SchedulePreview {
+  title: string | null;
+  events: ScheduleEvent[];
+}

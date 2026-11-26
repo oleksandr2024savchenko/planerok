@@ -30,6 +30,7 @@ import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
 import { TimerDock } from "./TimerDock";
 import { AudiencePills, FilterPills } from "./FilterPills";
+import { ScheduleImportSheet } from "./ScheduleImportSheet";
 import { SettingsBlock } from "./SettingsBlock";
 import { TaskList } from "./TaskList";
 import { useTelegram } from "./TelegramProvider";
@@ -50,12 +51,13 @@ export function HomePage() {
   const [view, setView] = useState<ViewMode>("list");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [feedsOpen, setFeedsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [slot, setSlot] = useState<TaskSlot | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
   const timerControls = useTimer({ enabled: isReady || USE_MOCKS, onSettled: () => void reload({ silent: true }) });
   const [couple, setCouple] = useState<Couple>(USE_MOCKS ? MOCK_COUPLE : { meId: null, partnerName: "Партнер" });
-  useAppUpdates(sheetOpen || feedsOpen);
+  useAppUpdates(sheetOpen || feedsOpen || importOpen);
 
   const scoped = useMemo(
     () => tasks.filter((task) => matchesAudience(task, audience, couple.meId)),
@@ -122,7 +124,9 @@ export function HomePage() {
         firstName={firstName}
         done={progress.done}
         total={progress.total}
-        settings={<SettingsBlock status={sync} onConnect={() => setFeedsOpen(true)} />}
+        settings={
+          <SettingsBlock status={sync} onConnect={() => setFeedsOpen(true)} onImport={() => setImportOpen(true)} />
+        }
       />
 
       <div className="mt-5 flex justify-end">
@@ -188,6 +192,11 @@ export function HomePage() {
         onUpdate={updateTask}
         onToggle={toggleTask}
         onDelete={deleteTask}
+      />
+      <ScheduleImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => void reload({ silent: true })}
       />
       <ExternalCalendarSheet
         open={feedsOpen}

@@ -31,6 +31,12 @@ class TimerCallback(CallbackData, prefix="tmr"):
     minutes: int = 0
 
 
+class ImportCallback(CallbackData, prefix="imp"):
+    """Who gets a timetable read from a PDF: me / partner / shared, or cancel."""
+
+    choice: str
+
+
 class TaskAction(StrEnum):
     EDIT_TIME = "time"
     DELETE = "del"

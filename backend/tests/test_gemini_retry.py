@@ -28,7 +28,7 @@ def calls(monkeypatch):
 
 
 def _run(monkeypatch, outcomes, calls):
-    async def fake_once(parts, now, schema, model):
+    async def fake_once(parts, now, schema, model, system=None):
         calls.append(model)
         result = outcomes.pop(0)
         if isinstance(result, BaseException):

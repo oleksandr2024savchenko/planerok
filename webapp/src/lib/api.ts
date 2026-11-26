@@ -1,5 +1,5 @@
 import { getInitData } from "./telegram";
-import type { CalendarFeed, CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate, Timer, TimerKind } from "./types";
+import type { CalendarFeed, CalendarStatus, ScheduleEvent, SchedulePreview, Task, TaskCreate, TaskScope, TaskUpdate, Timer, TimerKind } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false" || !API_URL;
@@ -57,6 +57,21 @@ export const timerApi = {
   pause: () => request<Timer>("/tasks/timer/pause", { method: "POST" }),
   resume: () => request<Timer>("/tasks/timer/resume", { method: "POST" }),
   stop: () => request<void>("/tasks/timer/stop", { method: "POST" }),
+};
+
+export const importApi = {
+  preview: (fileBase64: string, filename?: string) =>
+    request<SchedulePreview>("/tasks/import/pdf", {
+      method: "POST",
+      body: JSON.stringify({ file_base64: fileBase64, filename }),
+    }),
+  commit: (payload: {
+    events: ScheduleEvent[];
+    assignee: "me" | "partner" | "shared";
+    category: string | null;
+    remind_before_minutes: number | null;
+    title: string | null;
+  }) => request<{ created: number; skipped: number }>("/tasks/import", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export const calendarApi = {

@@ -130,6 +130,7 @@ async def create_task(
     data: TaskCreate,
     *,
     push_google: bool = True,
+    notify: bool = True,
 ) -> Task:
     raw = apply_schedule(data.model_dump())
     is_shared = bool(raw.pop("is_shared", False))
@@ -167,7 +168,7 @@ async def create_task(
     sync_reminder(task)
     if push_google:
         await _mirror_google(session, task)
-    if task.owner_id != user_id or task.is_shared:
+    if notify and (task.owner_id != user_id or task.is_shared):
         await scheduler.notify_assigned(task, actor_id=user_id)
     return task
 

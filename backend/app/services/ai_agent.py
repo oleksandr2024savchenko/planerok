@@ -386,6 +386,7 @@ async def _generate(
     parts: list[types.Part | str],
     now: datetime,
     schema: type[BaseModel] | None,
+    system: str | None = None,
 ) -> object:
     """One request, retried while Gemini is busy, then once on the fallback model if set."""
     settings = get_settings()
@@ -397,7 +398,7 @@ async def _generate(
         for attempt in range(len(RETRY_DELAYS) + 1):
             try:
                 return await asyncio.wait_for(
-                    _generate_once(parts, now, schema, model),
+                    _generate_once(parts, now, schema, model, system),
                     timeout=settings.gemini_timeout_seconds,
                 )
             except Exception as exc:
@@ -418,9 +419,10 @@ async def _generate_once(
     now: datetime,
     schema: type[BaseModel] | None,
     model: str,
+    system: str | None = None,
 ) -> object:
     config_kwargs: dict[str, object] = {
-        "system_instruction": build_system_prompt(now),
+        "system_instruction": system or build_system_prompt(now),
         "temperature": 0.1,
         "response_mime_type": "application/json",
     }

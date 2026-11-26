@@ -57,6 +57,8 @@ docker compose up -d --build backend
 | GET | `/me` | `telegram_id`, `theme`, `partner_telegram_id` |
 | GET/POST | `/tasks/timer` | живий таймер людини / старт `{task_id, minutes, kind}` |
 | POST | `/tasks/timer/pause`, `/resume`, `/stop` | керування таймером |
+| POST | `/tasks/import/pdf` | PDF розкладу (base64 у JSON) → перегляд подій, нічого не зберігає |
+| POST | `/tasks/import` | додати обрані події `{events, assignee, category, remind_before_minutes, title}` |
 | POST | `/webhooks/google-calendar` | push Google |
 | GET | `/calendar/oauth/start`, `/calendar/oauth/callback` | запасний OAuth; зараз працює сервісний акаунт |
 | GET | `/health` | `{"status":"ok"}` |
@@ -81,6 +83,10 @@ docker compose up -d --build backend
 Один живий таймер на людину (`TaskTimer`, `services/timers.py`): `kind` = `focus` | `break`, `status` = `running` | `paused` | `done` | `stopped`. Час — `elapsed_seconds` + (зараз − `running_since`). Старт нового закриває попередній. Кінець веде сервер: APScheduler-job `task-timer:{id}` → `scheduler.finish_timer` закриває сесію і шле в бот «✅ N хв фокусу…» з кнопками ☕ 5/10 хв, ▶ ще N, ✅ виконано (після перерви — ▶ 20/25/40, «Пізніше»; `bot/handlers/timers.py`). Пауза знімає job, продовження ставить новий. Хвилини фокусу (не перерви) додаються до `tasks.focused_seconds` при завершенні або стопі. API живе під `/tasks/timer`, бо Caddy пускає на бекенд лише перелічені префікси; роутер таймера підключено **перед** `tasks`, щоб `timer` не читався як `{task_id}`.
 
 Mini App: `hooks/useTimer.ts` (дзеркалить сервер, рахує локально від `remaining_seconds`, синк кожні 20 с і на focus, сам помічає кінець і показує вибір перерви), `TimerContext`; `TimerDock` — плаваюча панель над списком (кільце й цифри малюються прямо в DOM через rAF, без ре-рендерів); `FocusStarter` — блок у шиті задачі (15/20/25/40/60 хв, «Вже X з Y» відносно тривалості події); на картці «⏱ фокус іде» або «⏱ 35 хв». У демо-збірці `window.__planerTimer` дає тестам запускати секундні таймери: фейковий годинник Playwright ламає анімацію виходу framer-motion, тож кінець перевіряй у реальному часі.
+
+## Розклад з PDF
+
+`services/schedule_import.py`: Gemini читає PDF (`Part.from_bytes(mime=application/pdf)`, свій системний промпт через `ai_agent._generate(..., system=...)` з тими ж повторами) і повертає рядки з `date` або `weekday` (+ `every_weeks` для чисельника/знаменника, `first_date`, `until`). `expand()` розгортає щотижневі в конкретні дати від сьогодні до `until`, за замовчуванням 8 тижнів, максимум 16, не більше 150 подій, без дублів. `import_occurrences` створює задачі через `create_task(push_google=False, notify=False)` і пропускає ті, що вже є (та сама назва й початок серед видимих). Google-дзеркало йде у фоні (`mirror_to_google`), а партнер отримує одне підсумкове повідомлення (`scheduler.notify_import`), а не по одному на пару. Файл до 10 МБ; `python-multipart` не підключено, тому Mini App шле base64 у JSON. Бот: PDF-документ у чат → перелік → кнопки «Мені / <ім'я> / Разом / Скасувати» (`bot/handlers/schedule.py`, події тимчасово лежать у FSM у Redis), тег «навчання», нагадування за 15 хв. Mini App: ☰ → «Розклад з PDF» (`ScheduleImportSheet`): перегляд по днях із галочками, «Хто робить», тег, нагадування.
 
 ## Google Calendar
 

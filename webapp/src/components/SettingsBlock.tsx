@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Link2, Menu, X } from "lucide-react";
+import { FileText, Link2, Menu, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 import { cn } from "@/lib/cn";
@@ -12,9 +12,10 @@ import type { CalendarStatus } from "@/lib/types";
 interface SettingsBlockProps {
   status: CalendarStatus;
   onConnect: () => void;
+  onImport?: () => void;
 }
 
-export function SettingsBlock({ status, onConnect }: SettingsBlockProps) {
+export function SettingsBlock({ status, onConnect, onImport }: SettingsBlockProps) {
   const menuId = useId();
   const [open, setOpen] = useState(false);
   const detail = status.live ? "Наживо" : status.connected ? "Підключено" : "Немає зв’язку";
@@ -98,6 +99,21 @@ export function SettingsBlock({ status, onConnect }: SettingsBlockProps) {
                 <Link2 className="size-4 shrink-0 text-zinc-400" aria-hidden />
                 Календар за посиланням
               </button>
+              {onImport && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    haptic.selection();
+                    setOpen(false);
+                    onImport();
+                  }}
+                  className="mt-2 flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-medium text-zinc-100 hover:border-white/20"
+                >
+                  <FileText className="size-4 shrink-0 text-zinc-400" aria-hidden />
+                  Розклад з PDF
+                </button>
+              )}
               <p className="mt-3 text-center text-[10px] tracking-wide text-zinc-600">
                 Версія {process.env.NEXT_PUBLIC_BUILD_ID || "dev"}
               </p>

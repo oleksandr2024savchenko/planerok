@@ -236,6 +236,32 @@ async def notify_assigned(task: Task, actor_id: int | None) -> None:
         logger.exception("Could not tell %s about task %s", other, task.id)
 
 
+async def notify_import(actor_id: int, count: int, title: str | None, *, shared: bool) -> None:
+    """One summary for the partner instead of a message per imported lesson."""
+    if _bot is None or count <= 0:
+        return
+    from app.bot.keyboards import webapp_keyboard
+    from app.config import get_settings
+    from app.services.users import partner_id
+
+    async with session_factory() as session:
+        other = await partner_id(session, actor_id)
+        who = await _first_name(session, actor_id)
+    if other is None:
+        return
+    source = f" з розкладу «{escape(title)}»" if title else " з розкладу"
+    noun = "подію" if count % 10 == 1 and count % 100 != 11 else "події" if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14) else "подій"
+    what = f"{count} {'спільну' if noun == 'подію' else 'спільні' if noun == 'події' else 'спільних'} {noun}" if shared else f"{count} {noun} для тебе"
+    try:
+        await _bot.send_message(
+            chat_id=other,
+            text=f"📅 <b>{escape(who)}</b> додає {what}{source}.",
+            reply_markup=webapp_keyboard(get_settings().webapp_url),
+        )
+    except Exception:
+        logger.exception("Could not tell %s about an imported timetable", other)
+
+
 async def notify_cancelled(title: str, recipients: set[int], actor_id: int) -> None:
     """A task that concerned the partner was cancelled: say so, so nobody waits for it."""
     if _bot is None or not recipients:
