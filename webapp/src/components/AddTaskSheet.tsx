@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Calendar, Clock, Flag, Users, X } from "lucide-react";
+import { Bell, Flag, Users, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { ChoiceChip, SegmentedControl } from "@/components/SegmentedControl";
@@ -16,6 +16,7 @@ import { CATEGORIES, type Category, type Priority, type Task, type TaskCreate, t
 
 import { FocusStarter } from "./FocusStarter";
 import { ReminderPicker } from "./ReminderPicker";
+import { WhenPicker } from "./WhenPicker";
 import { Reveal } from "./Reveal";
 
 const PRIORITIES: { id: Priority; label: string }[] = [
@@ -111,15 +112,6 @@ export function AddTaskSheet({
     };
   }, [open, onClose]);
 
-  function changeStart(value: string) {
-    setStartTime(value);
-    setEndTime((current) => {
-      if (!value) return current;
-      if (!current || current <= value) return shiftTime(value, 60);
-      return current;
-    });
-  }
-
   const schedule = scheduleFor(date, startTime, endTime);
   // New timed events remind at the start, date-only ones not at all (the behaviour before offsets).
   const effectiveReminder = reminder === undefined ? (startTime ? 0 : null) : reminder;
@@ -193,7 +185,7 @@ export function AddTaskSheet({
                         ? "Зміни назву, час і нагадування"
                         : slot
                           ? `Старт ${slot.time} · час можна змінити`
-                          : "Дата, початок і кінець — за бажанням"}
+                          : "Коли, нагадування й пріоритет — за бажанням"}
                   </p>
                 </div>
                 <button
@@ -321,41 +313,16 @@ export function AddTaskSheet({
                 </Reveal>
               </fieldset>
 
-              <label className="block min-w-0 space-y-1.5">
-                <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  <Calendar className="size-3 shrink-0" />
-                  <span className="truncate">Дата</span>
-                </span>
-                <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={fieldClass} />
-              </label>
-              <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
-                <label className="block min-w-0 space-y-1.5">
-                  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    <Clock className="size-3 shrink-0" />
-                    <span className="truncate">Початок</span>
-                  </span>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(event) => changeStart(event.target.value)}
-                    disabled={!date}
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="block min-w-0 space-y-1.5">
-                  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    <Clock className="size-3 shrink-0" />
-                    <span className="truncate">Кінець</span>
-                  </span>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(event) => setEndTime(event.target.value)}
-                    disabled={!date}
-                    className={fieldClass}
-                  />
-                </label>
-              </div>
+              <WhenPicker
+                date={date}
+                start={startTime}
+                end={endTime}
+                onChange={(nextDate, nextStart, nextEnd) => {
+                  setDate(nextDate);
+                  setStartTime(nextStart);
+                  setEndTime(nextEnd);
+                }}
+              />
 
               <Reveal show={Boolean(date)}>
                 <fieldset className="min-w-0 space-y-2">
