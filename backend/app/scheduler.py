@@ -3,10 +3,11 @@ from datetime import datetime
 
 from aiogram import Bot
 from apscheduler.jobstores.base import JobLookupError
-from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from app.bot.keyboards import reminder_keyboard
 from app.bot.texts import reminder_text
@@ -37,6 +38,15 @@ def setup_scheduler(bot: Bot, settings: Settings) -> AsyncIOScheduler:
         }
     )
     _configure_google_job(settings)
+    scheduler.add_job(
+        send_due_digests,
+        trigger=CronTrigger(minute="*", timezone=TIMEZONE),
+        id="morning-digest",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=55,
+    )
     return scheduler
 
 
@@ -101,3 +111,26 @@ async def send_reminder(task_id: int) -> None:
             text=reminder_text(task),
             reply_markup=reminder_keyboard(task.id),
         )
+
+
+async def send_due_digests() -> None:
+    """Runs every minute; each user gets at most one digest per local day."""
+    if _bot is None:
+        return
+    from app.services import digest
+
+    async with session_factory() as session:
+        for recipient in await digest.recipients(session):
+            zone = digest.user_zone(recipient.user)
+            now_local = datetime.now(zone)
+            if not digest.is_due(recipient.prefs, now_local):
+                continue
+            try:
+                data = await digest.collect_digest(session, recipient.user, now_local)
+                text = digest.render_digest(data, zone)
+                if text is not None:
+                    await _bot.send_message(chat_id=recipient.chat_id, text=text)
+            except Exception:
+                # Blocked bot, deleted chat, etc. must not stop the others.
+                logger.exception("Digest for user %s failed", recipient.user.id)
+            await digest.mark_sent(session, recipient.user.id, now_local.date())

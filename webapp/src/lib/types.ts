@@ -75,3 +75,9 @@ export type TaskScope = "today" | "upcoming" | "all";
 
 export const CATEGORIES = ["робота", "навчання", "тренування", "особисте"] as const;
 export type Category = (typeof CATEGORIES)[number];
+
+/** Morning digest settings; `digest_time` is "HH:MM" in the user's timezone. */
+export interface NotificationPrefs {
+  digest_enabled: boolean;
+  digest_time: string;
+}

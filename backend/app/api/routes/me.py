@@ -1,8 +1,16 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import CurrentUserDep, SessionDep
-from app.models import Space, SpaceKind, SpaceRole, User
-from app.schemas import MeRead, SpaceCreate, SpaceRead, SpaceUpdate
+from app.models import NotificationPrefs, Space, SpaceKind, SpaceRole, User
+from app.schemas import (
+    MeRead,
+    NotificationPrefsRead,
+    NotificationPrefsUpdate,
+    SpaceCreate,
+    SpaceRead,
+    SpaceUpdate,
+)
+from app.services import digest as digest_service
 from app.services import users as users_service
 
 router = APIRouter(tags=["me"])
@@ -57,3 +65,25 @@ async def delete_space(space_id: int, session: SessionDep, user: CurrentUserDep)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "The personal space cannot be deleted")
     await users_service.delete_space(session, space)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/me/notifications", response_model=NotificationPrefsRead)
+async def read_notifications(session: SessionDep, user: CurrentUserDep) -> NotificationPrefs:
+    prefs = await digest_service.get_prefs(session, user.id)
+    await session.commit()
+    return prefs
+
+
+@router.patch("/me/notifications", response_model=NotificationPrefsRead)
+async def update_notifications(
+    payload: NotificationPrefsUpdate, session: SessionDep, user: CurrentUserDep
+) -> NotificationPrefs:
+    prefs = await digest_service.get_prefs(session, user.id)
+    changes = payload.model_dump(exclude_unset=True)
+    if "digest_time" in changes and changes["digest_time"] != prefs.digest_time:
+        # A new time today should still fire today.
+        prefs.last_digest_on = None
+    for field, value in changes.items():
+        setattr(prefs, field, value)
+    await session.commit()
+    return prefs

@@ -1,7 +1,14 @@
-from datetime import datetime
+from datetime import datetime, time
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_serializer,
+    field_validator,
+)
 
 from app.config import TIMEZONE
 from app.models import Priority, SpaceKind, SpaceRole, TaskStatus
@@ -168,3 +175,31 @@ class MeRead(BaseModel):
     accent_color: str | None
     base_currency: str
     timezone: str
+
+
+class NotificationPrefsRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    digest_enabled: bool
+    digest_time: time
+
+    @field_serializer("digest_time")
+    def _serialize_time(self, value: time) -> str:
+        return value.strftime("%H:%M")
+
+
+class NotificationPrefsUpdate(BaseModel):
+    digest_enabled: bool | None = None
+    digest_time: time | None = None
+
+    @field_validator("digest_enabled", "digest_time")
+    @classmethod
+    def _not_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
+
+    @field_validator("digest_time")
+    @classmethod
+    def _whole_minutes(cls, value: time) -> time:
+        return value.replace(second=0, microsecond=0, tzinfo=None)

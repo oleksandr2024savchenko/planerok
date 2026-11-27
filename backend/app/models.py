@@ -1,7 +1,19 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, false, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+    false,
+    func,
+    true,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -94,6 +106,18 @@ class TaskStatus(StrEnum):
     TODO = "todo"
     DOING = "doing"
     DONE = "done"
+
+
+class NotificationPrefs(TimestampMixin, Base):
+    """Per-user notification settings. A missing row means the defaults below."""
+
+    __tablename__ = "notification_prefs"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    digest_enabled: Mapped[bool] = mapped_column(default=True, server_default=true())
+    # Local time in the user's timezone.
+    digest_time: Mapped[time] = mapped_column(Time, default=time(8, 0), server_default="08:00")
+    last_digest_on: Mapped[date | None] = mapped_column(Date)
 
 
 class Recurrence(TimestampMixin, Base):

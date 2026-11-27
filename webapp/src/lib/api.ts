@@ -1,5 +1,5 @@
 import { getInitData } from "./telegram";
-import type { CalendarStatus, Space, SpaceInput, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
+import type { CalendarStatus, NotificationPrefs, Space, SpaceInput, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false" || !API_URL;
@@ -57,6 +57,12 @@ export const spacesApi = {
   update: (id: number, data: SpaceInput) =>
     request<Space>(`/spaces/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   remove: (id: number) => request<void>(`/spaces/${id}`, { method: "DELETE" }),
+};
+
+export const notificationsApi = {
+  get: () => request<NotificationPrefs>("/me/notifications"),
+  update: (data: Partial<NotificationPrefs>) =>
+    request<NotificationPrefs>("/me/notifications", { method: "PATCH", body: JSON.stringify(data) }),
 };
 
 export const calendarApi = {

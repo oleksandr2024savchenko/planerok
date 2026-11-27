@@ -39,6 +39,7 @@ async def configure_bot(bot: Bot, settings: Settings) -> None:
             BotCommand(command="help", description="Як додавати задачі"),
             BotCommand(command="spaces", description="Мої простори"),
             BotCommand(command="newspace", description="Створити простір"),
+            BotCommand(command="digest", description="Ранковий дайджест"),
         ]
     )
     if settings.webapp_url.startswith("https://"):

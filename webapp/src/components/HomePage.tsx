@@ -1,5 +1,6 @@
 "use client";
 
+import { Bell } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useSpaces } from "@/hooks/useSpaces";
@@ -12,6 +13,7 @@ import type { CalendarStatus } from "@/lib/types";
 import { AddTaskSheet, type TaskSlot } from "./AddTaskSheet";
 import { CalendarBoard } from "./CalendarBoard";
 import { DashboardHeader } from "./DashboardHeader";
+import { DigestSheet } from "./DigestSheet";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
 import { FilterPills } from "./FilterPills";
@@ -33,6 +35,7 @@ export function HomePage() {
   const { spaces, createSpace, updateSpace, removeSpace } = useSpaces({ enabled: isReady || USE_MOCKS });
   const [spaceFilter, setSpaceFilter] = useState<SpaceFilter>("all");
   const [spacesOpen, setSpacesOpen] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
   const [filter, setFilter] = useState<FilterId>("today");
   const [view, setView] = useState<ViewMode>("list");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -71,7 +74,17 @@ export function HomePage() {
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <SyncBadge status={sync} />
-        <ViewModeSwitch value={view} onChange={setView} />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Ранковий дайджест"
+            onClick={() => setDigestOpen(true)}
+            className="flex size-9 items-center justify-center rounded-full border border-white/5 bg-zinc-900/60 text-zinc-400 backdrop-blur-xl transition hover:border-purple-500/30 hover:text-zinc-100"
+          >
+            <Bell className="size-4" />
+          </button>
+          <ViewModeSwitch value={view} onChange={setView} />
+        </div>
       </div>
 
       {spaces.length > 0 && (
@@ -118,7 +131,7 @@ export function HomePage() {
         <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
       )}
 
-      <Fab hidden={sheetOpen || spacesOpen} onClick={() => openSheet(null)} />
+      <Fab hidden={sheetOpen || spacesOpen || digestOpen} onClick={() => openSheet(null)} />
       <AddTaskSheet
         open={sheetOpen}
         slot={slot}
@@ -127,6 +140,7 @@ export function HomePage() {
         onClose={() => setSheetOpen(false)}
         onCreate={createTask}
       />
+      <DigestSheet open={digestOpen} onClose={() => setDigestOpen(false)} />
       <SpacesSheet
         open={spacesOpen}
         spaces={spaces}
