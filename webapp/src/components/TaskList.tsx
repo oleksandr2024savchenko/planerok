@@ -4,17 +4,19 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
 
 import { groupByDate, isOverdue, type FilterId } from "@/lib/filters";
-import type { Task } from "@/lib/types";
+import type { Space, Task } from "@/lib/types";
 
 import { TaskCard } from "./TaskCard";
 
 interface TaskListProps {
   tasks: Task[];
   filter: FilterId;
+  /** Present when the list mixes spaces, so each card shows its space. */
+  spaces?: Map<number, Space> | null;
   onToggle: (id: number) => void;
 }
 
-export function TaskList({ tasks, filter, onToggle }: TaskListProps) {
+export function TaskList({ tasks, filter, spaces = null, onToggle }: TaskListProps) {
   if (filter === "today") {
     const overdue = tasks.filter((task) => isOverdue(task));
     const due = tasks.filter((task) => !isOverdue(task));
@@ -22,12 +24,12 @@ export function TaskList({ tasks, filter, onToggle }: TaskListProps) {
       <div className="space-y-6">
         {overdue.length > 0 && (
           <Section title="Прострочені" accent>
-            <Cards tasks={overdue} onToggle={onToggle} />
+            <Cards tasks={overdue} spaces={spaces} onToggle={onToggle} />
           </Section>
         )}
         {due.length > 0 && (
           <Section title={overdue.length > 0 ? "Сьогодні" : undefined}>
-            <Cards tasks={due} onToggle={onToggle} />
+            <Cards tasks={due} spaces={spaces} onToggle={onToggle} />
           </Section>
         )}
       </div>
@@ -38,7 +40,7 @@ export function TaskList({ tasks, filter, onToggle }: TaskListProps) {
     <div className="space-y-6">
       {groupByDate(tasks).map((group) => (
         <Section key={group.key} title={group.label}>
-          <Cards tasks={group.tasks} onToggle={onToggle} />
+          <Cards tasks={group.tasks} spaces={spaces} onToggle={onToggle} />
         </Section>
       ))}
     </div>
@@ -72,7 +74,15 @@ function Section({
   );
 }
 
-function Cards({ tasks, onToggle }: { tasks: Task[]; onToggle: (id: number) => void }) {
+function Cards({
+  tasks,
+  spaces,
+  onToggle,
+}: {
+  tasks: Task[];
+  spaces: Map<number, Space> | null;
+  onToggle: (id: number) => void;
+}) {
   return (
     <ul className="space-y-2.5">
       <AnimatePresence initial={false}>
@@ -85,7 +95,7 @@ function Cards({ tasks, onToggle }: { tasks: Task[]; onToggle: (id: number) => v
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
           >
-            <TaskCard task={task} onToggle={onToggle} />
+            <TaskCard task={task} space={spaces?.get(task.space_id) ?? null} onToggle={onToggle} />
           </motion.li>
         ))}
       </AnimatePresence>

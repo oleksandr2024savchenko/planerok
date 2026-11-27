@@ -1,5 +1,5 @@
 import { getInitData } from "./telegram";
-import type { CalendarStatus, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
+import type { CalendarStatus, Space, SpaceInput, Task, TaskCreate, TaskScope, TaskUpdate } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false" || !API_URL;
@@ -48,6 +48,15 @@ export const tasksApi = {
   remove(id: number) {
     return request<void>(`/tasks/${id}`, { method: "DELETE" });
   },
+};
+
+export const spacesApi = {
+  list: () => request<Space[]>("/spaces"),
+  create: (data: SpaceInput & { name: string }) =>
+    request<Space>("/spaces", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: SpaceInput) =>
+    request<Space>(`/spaces/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  remove: (id: number) => request<void>(`/spaces/${id}`, { method: "DELETE" }),
 };
 
 export const calendarApi = {

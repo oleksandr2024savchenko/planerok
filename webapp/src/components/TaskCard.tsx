@@ -1,20 +1,24 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Calendar, Check } from "lucide-react";
+import { Bell, Calendar, Check, Flame, Repeat } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { formatDay, formatTime } from "@/lib/date";
 import { isOverdue } from "@/lib/filters";
 import { haptic } from "@/lib/telegram";
-import type { Task } from "@/lib/types";
+import type { Space, Task } from "@/lib/types";
+
+import { SpaceDot } from "./SpacePills";
 
 interface TaskCardProps {
   task: Task;
+  /** Shown when the list mixes spaces; the personal space stays unlabeled. */
+  space?: Space | null;
   onToggle: (id: number) => void;
 }
 
-export function TaskCard({ task, onToggle }: TaskCardProps) {
+export function TaskCard({ task, space = null, onToggle }: TaskCardProps) {
   const overdue = isOverdue(task);
   const highlight = task.priority === "high" && !task.is_completed;
   const when = task.start_time ?? task.deadline;
@@ -60,6 +64,12 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-zinc-500">
+            {space && space.kind !== "personal" && (
+              <span className="inline-flex items-center gap-1.5 text-zinc-400">
+                <SpaceDot color={space.color} />
+                {space.name}
+              </span>
+            )}
             {task.category && (
               <span className="rounded-full bg-purple-500/10 px-2 py-0.5 font-medium text-purple-300/90">
                 #{task.category}
@@ -76,6 +86,21 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
               <span className="inline-flex items-center gap-1">
                 <Bell className="size-3" />
                 {formatTime(task.remind_at)}
+              </span>
+            )}
+            {task.recurrence_label && (
+              <span className="inline-flex items-center gap-1">
+                <Repeat className="size-3" />
+                {task.recurrence_label}
+              </span>
+            )}
+            {(task.streak_current ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center gap-1 font-medium text-amber-300/90"
+                title={`Найкраща серія: ${task.streak_best ?? task.streak_current}`}
+              >
+                <Flame className="size-3" />
+                {task.streak_current} поспіль
               </span>
             )}
           </div>

@@ -1,8 +1,29 @@
 export type Priority = "low" | "medium" | "high";
+export type TaskStatus = "backlog" | "todo" | "doing" | "done";
+export type SpaceKind = "personal" | "shared";
+export type SpaceRole = "owner" | "editor" | "viewer";
+
+/** Mirrors `SpaceRead`. The personal space is created automatically and cannot be deleted. */
+export interface Space {
+  id: number;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  kind: SpaceKind;
+  role: SpaceRole;
+}
+
+export interface SpaceInput {
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
+}
 
 /** Mirrors `TaskRead` from the backend. Datetimes are ISO strings with offset. */
 export interface Task {
   id: number;
+  space_id: number;
+  created_by_id: number;
   title: string;
   description: string | null;
   category: string | null;
@@ -13,12 +34,22 @@ export interface Task {
   end_time: string | null;
   google_event_id: string | null;
   sync_token: string | null;
+  status: TaskStatus;
   is_completed: boolean;
   created_at: string;
+  updated_at: string;
+  /** RRULE subset, e.g. "FREQ=WEEKLY;BYDAY=MO". */
+  recurrence_rule: string | null;
+  recurrence_label: string | null;
+  streak_current: number | null;
+  streak_best: number | null;
 }
 
 export interface TaskCreate {
   title: string;
+  space_id?: number | null;
+  recurrence?: string | null;
+  status?: TaskStatus;
   description?: string | null;
   category?: string | null;
   priority?: Priority;
@@ -34,7 +65,11 @@ export interface CalendarStatus {
   last_sync_at: string | null;
 }
 
-export type TaskUpdate = Partial<TaskCreate> & { is_completed?: boolean };
+export type TaskUpdate = Partial<Omit<TaskCreate, "space_id">> & { space_id?: number; is_completed?: boolean };
+
+export function canWrite(space: Space): boolean {
+  return space.role !== "viewer";
+}
 
 export type TaskScope = "today" | "upcoming" | "all";
 

@@ -34,17 +34,23 @@ export function useTasks({ enabled }: { enabled: boolean }) {
     async (id: number, patch: TaskUpdate) => {
       const previous = tasks.find((task) => task.id === id);
       if (!previous) return;
-      setTasks((current) => current.map((task) => (task.id === id ? { ...task, ...patch } : task)));
+      const optimistic: Partial<Task> = { ...patch, space_id: patch.space_id ?? previous.space_id };
+      if (patch.is_completed !== undefined) optimistic.status = patch.is_completed ? "done" : "todo";
+      setTasks((current) => current.map((task) => (task.id === id ? { ...task, ...optimistic } : task)));
       if (USE_MOCKS) return;
       try {
         const saved = await tasksApi.update(id, patch);
         setTasks((current) => current.map((task) => (task.id === id ? saved : task)));
+        // Completing a recurring task creates the next one on the server.
+        if (saved.is_completed && !previous.is_completed && saved.recurrence_rule) {
+          await reload({ silent: true });
+        }
       } catch (err) {
         setTasks((current) => current.map((task) => (task.id === id ? previous : task)));
         setError(err instanceof Error ? err.message : "Не вдалося оновити задачу");
       }
     },
-    [tasks],
+    [tasks, reload],
   );
 
   const toggleTask = useCallback(

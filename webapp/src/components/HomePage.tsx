@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useSpaces } from "@/hooks/useSpaces";
 import { useTasks } from "@/hooks/useTasks";
 import { calendarApi, USE_MOCKS } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -14,6 +15,8 @@ import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { Fab } from "./Fab";
 import { FilterPills } from "./FilterPills";
+import { SpacePills, type SpaceFilter } from "./SpacePills";
+import { SpacesSheet } from "./SpacesSheet";
 import { SyncBadge } from "./SyncBadge";
 import { TaskList } from "./TaskList";
 import { useTelegram } from "./TelegramProvider";
@@ -27,18 +30,28 @@ export function HomePage() {
   const { tasks, isLoading, error, reload, createTask, toggleTask } = useTasks({
     enabled: isReady || USE_MOCKS,
   });
+  const { spaces, createSpace, updateSpace, removeSpace } = useSpaces({ enabled: isReady || USE_MOCKS });
+  const [spaceFilter, setSpaceFilter] = useState<SpaceFilter>("all");
+  const [spacesOpen, setSpacesOpen] = useState(false);
   const [filter, setFilter] = useState<FilterId>("today");
   const [view, setView] = useState<ViewMode>("list");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [slot, setSlot] = useState<TaskSlot | null>(null);
   const sync = useCalendarStatus(isReady || USE_MOCKS);
 
-  const counts = useMemo(() => countByFilter(tasks), [tasks]);
-  const visible = useMemo(
-    () => sortTasks(tasks.filter((task) => matchesFilter(task, filter))),
-    [tasks, filter],
+  const spaceById = useMemo(() => new Map(spaces.map((space) => [space.id, space])), [spaces]);
+  // A deleted space drops out of the list; fall back to all spaces.
+  const activeSpace = spaceFilter !== "all" && spaceById.has(spaceFilter) ? spaceFilter : "all";
+  const scoped = useMemo(
+    () => (activeSpace === "all" ? tasks : tasks.filter((task) => task.space_id === activeSpace)),
+    [tasks, activeSpace],
   );
-  const progress = useMemo(() => todayProgress(tasks), [tasks]);
+  const counts = useMemo(() => countByFilter(scoped), [scoped]);
+  const visible = useMemo(
+    () => sortTasks(scoped.filter((task) => matchesFilter(task, filter))),
+    [scoped, filter],
+  );
+  const progress = useMemo(() => todayProgress(scoped), [scoped]);
   const ready = (isReady || USE_MOCKS) && !isLoading;
 
   useEffect(() => {
@@ -61,8 +74,14 @@ export function HomePage() {
         <ViewModeSwitch value={view} onChange={setView} />
       </div>
 
-      {view === "list" && (
+      {spaces.length > 0 && (
         <div className="mt-4">
+          <SpacePills spaces={spaces} value={activeSpace} onChange={setSpaceFilter} onManage={() => setSpacesOpen(true)} />
+        </div>
+      )}
+
+      {view === "list" && (
+        <div className="mt-3">
           <FilterPills value={filter} counts={counts} onChange={setFilter} />
         </div>
       )}
@@ -82,11 +101,16 @@ export function HomePage() {
         {!ready ? (
           <TaskSkeleton />
         ) : view === "calendar" ? (
-          <CalendarBoard tasks={tasks} onSlot={(date, time) => openSheet({ date, time })} />
+          <CalendarBoard tasks={scoped} onSlot={(date, time) => openSheet({ date, time })} />
         ) : visible.length === 0 ? (
           <EmptyState filter={filter} onAdd={() => openSheet(null)} />
         ) : (
-          <TaskList tasks={visible} filter={filter} onToggle={toggleTask} />
+          <TaskList
+            tasks={visible}
+            filter={filter}
+            spaces={activeSpace === "all" && spaces.length > 1 ? spaceById : null}
+            onToggle={toggleTask}
+          />
         )}
       </div>
 
@@ -94,12 +118,26 @@ export function HomePage() {
         <p className="mt-8 text-center text-[11px] tracking-wide text-zinc-600">Демо-дані · API ще не підключено</p>
       )}
 
-      <Fab hidden={sheetOpen} onClick={() => openSheet(null)} />
+      <Fab hidden={sheetOpen || spacesOpen} onClick={() => openSheet(null)} />
       <AddTaskSheet
         open={sheetOpen}
         slot={slot}
+        spaces={spaces}
+        defaultSpaceId={activeSpace === "all" ? null : activeSpace}
         onClose={() => setSheetOpen(false)}
         onCreate={createTask}
+      />
+      <SpacesSheet
+        open={spacesOpen}
+        spaces={spaces}
+        onClose={() => setSpacesOpen(false)}
+        onCreate={createSpace}
+        onUpdate={updateSpace}
+        onRemove={async (id) => {
+          await removeSpace(id);
+          // Tasks of the deleted space are gone on the server too.
+          await reload({ silent: true });
+        }}
       />
     </main>
   );
