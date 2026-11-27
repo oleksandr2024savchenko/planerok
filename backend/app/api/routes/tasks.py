@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import SessionDep, CurrentUserDep
-from app.models import Task
+from app.models import Task, TaskStatus
+from app.services import users as users_service
 from app.schemas import TaskCreate, TaskRead, TaskScope, TaskUpdate
 from app.services import tasks as tasks_service
 
@@ -21,8 +22,14 @@ async def list_tasks(
     user: CurrentUserDep,
     scope: TaskScope = TaskScope.ALL,
     category: str | None = None,
+    space_id: int | None = None,
+    status: TaskStatus | None = None,
 ) -> list[Task]:
-    return list(await tasks_service.list_tasks(session, user.id, scope=scope, category=category))
+    return list(
+        await tasks_service.list_tasks(
+            session, user.id, scope=scope, category=category, space_id=space_id, status=status
+        )
+    )
 
 
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -36,6 +43,8 @@ async def create_task(payload: TaskCreate, session: SessionDep, user: CurrentUse
 @router.patch("/{task_id}", response_model=TaskRead)
 async def update_task(task_id: int, payload: TaskUpdate, session: SessionDep, user: CurrentUserDep) -> Task:
     task = await _get_writable_task(session, user.id, task_id)
+    if payload.space_id is not None and not await users_service.can_write(session, user.id, payload.space_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "No write access to the target space")
     return await tasks_service.update_task(session, task, payload)
 
 

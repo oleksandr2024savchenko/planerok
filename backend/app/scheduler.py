@@ -90,7 +90,7 @@ async def send_reminder(task_id: int) -> None:
 
     async with session_factory() as session:
         task = await session.get(Task, task_id)
-        if task is None or task.is_completed:
+        if task is None or task.is_completed or task.deleted_at is not None:
             return
         chat_id = await telegram_chat_id(session, task.created_by_id)
         if chat_id is None:

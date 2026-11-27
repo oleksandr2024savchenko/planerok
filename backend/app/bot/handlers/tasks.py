@@ -14,7 +14,8 @@ from app.bot.parser import EmptyTitleError, parse_task
 from app.bot.states import TaskEdit
 from app.bot.texts import ASK_NEW_TIME_TEXT, created_list_text, format_dt, task_details
 from app.config import get_settings
-from app.models import Task, User
+from app.models import Space, Task, User
+from app.services import users as users_service
 from app.schemas import TaskUpdate
 from app.services import tasks as tasks_service
 from app.services.ai_agent import (
@@ -69,15 +70,26 @@ async def _persist_tasks(
     session: AsyncSession,
     user_id: int,
     extraction: TaskExtractionResult,
+    space: Space | None = None,
 ) -> list[Task]:
     created: list[Task] = []
     for parsed in extraction.tasks:
-        created.append(await tasks_service.create_task(session, user_id, to_task_create(parsed)))
+        payload = to_task_create(parsed)
+        if space is not None:
+            payload = payload.model_copy(update={"space_id": space.id})
+        created.append(await tasks_service.create_task(session, user_id, payload))
     return created
 
 
-async def _reply_with_tasks(message: Message, tasks: list[Task], status: Message | None = None) -> None:
+async def _reply_with_tasks(
+    message: Message,
+    tasks: list[Task],
+    status: Message | None = None,
+    space: Space | None = None,
+) -> None:
     text = created_list_text(tasks)
+    if space is not None:
+        text = f"📂 {escape(space.name)}\n{text}"
     markup = created_tasks_keyboard([task.id for task in tasks], get_settings().webapp_url)
     if status is not None:
         await status.edit_text(text, reply_markup=markup)
@@ -220,8 +232,9 @@ async def quick_create_task(message: Message, session: AsyncSession, user: User)
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     status = await message.reply("🧠 Розпізнаю задачу...")
 
+    space, text = await users_service.resolve_space_tag(session, user.id, message.text)
     try:
-        extraction = await _extract(text=message.text)
+        extraction = await _extract(text=text)
     except (TaskExtractionError, EmptyTitleError):
         await status.edit_text(
             "🤔 Не бачу назви задачі. Напиши, наприклад: <code>завтра на 10 ранку зал</code>"
@@ -232,5 +245,5 @@ async def quick_create_task(message: Message, session: AsyncSession, user: User)
         await status.edit_text("🤔 Не вдалося витягти завдання. Сформулюй конкретніше.")
         return
 
-    created = await _persist_tasks(session, user.id, extraction)
-    await _reply_with_tasks(message, created, status=status)
+    created = await _persist_tasks(session, user.id, extraction, space)
+    await _reply_with_tasks(message, created, status=status, space=space)

@@ -1,12 +1,14 @@
 """Users, sign-in identities and space membership."""
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.parser import normalize_tag, remove_tag, split_tags
 from app.models import (
     AuthIdentity,
     AuthProvider,
@@ -68,12 +70,19 @@ async def _user_by_identity(session: AsyncSession, provider: AuthProvider, exter
 
 
 def member_space_ids(user_id: int) -> Select[tuple[int]]:
-    return select(SpaceMember.space_id).where(SpaceMember.user_id == user_id)
+    """Live spaces the user belongs to; deleted spaces hide their data."""
+    return (
+        select(SpaceMember.space_id)
+        .join(Space, Space.id == SpaceMember.space_id)
+        .where(SpaceMember.user_id == user_id, Space.deleted_at.is_(None))
+    )
 
 
 async def get_role(session: AsyncSession, user_id: int, space_id: int) -> SpaceRole | None:
     return await session.scalar(
-        select(SpaceMember.role).where(SpaceMember.user_id == user_id, SpaceMember.space_id == space_id)
+        select(SpaceMember.role)
+        .join(Space, Space.id == SpaceMember.space_id)
+        .where(SpaceMember.user_id == user_id, SpaceMember.space_id == space_id, Space.deleted_at.is_(None))
     )
 
 
@@ -118,3 +127,66 @@ async def telegram_chat_id(session: AsyncSession, user_id: int) -> int | None:
         )
     )
     return int(external_id) if external_id else None
+
+
+class SpaceNameTakenError(ValueError):
+    pass
+
+
+async def _ensure_unique_name(session: AsyncSession, user_id: int, name: str, *, exclude_id: int | None = None) -> None:
+    key = normalize_tag(name)
+    for space, _ in await list_spaces(session, user_id):
+        if space.id != exclude_id and normalize_tag(space.name) == key:
+            raise SpaceNameTakenError(name)
+
+
+async def create_space(
+    session: AsyncSession, user_id: int, name: str, *, color: str | None = None, icon: str | None = None
+) -> Space:
+    """Creates a private space owned by the user; others join only by invitation."""
+    name = name.strip()
+    await _ensure_unique_name(session, user_id, name)
+    space = Space(name=name, color=color, icon=icon, kind=SpaceKind.SHARED)
+    session.add(space)
+    await session.flush()
+    session.add(SpaceMember(space_id=space.id, user_id=user_id, role=SpaceRole.OWNER))
+    await session.commit()
+    return space
+
+
+async def update_space(session: AsyncSession, user_id: int, space: Space, changes: Mapping[str, Any]) -> Space:
+    if "name" in changes and changes["name"] is not None:
+        changes = {**changes, "name": changes["name"].strip()}
+        await _ensure_unique_name(session, user_id, changes["name"], exclude_id=space.id)
+    for field, value in changes.items():
+        setattr(space, field, value)
+    await session.commit()
+    return space
+
+
+async def delete_space(session: AsyncSession, space: Space) -> None:
+    space.deleted_at = datetime.now(UTC)
+    await session.commit()
+
+
+async def owned_space(session: AsyncSession, user_id: int, space_id: int) -> Space | None:
+    if await get_role(session, user_id, space_id) is not SpaceRole.OWNER:
+        return None
+    return await session.get(Space, space_id)
+
+
+async def resolve_space_tag(session: AsyncSession, user_id: int, text: str) -> tuple[Space | None, str]:
+    """Routes "#Бізнес" to the user's writable space with that name and strips the tag.
+
+    Unknown tags stay in the text and keep working as categories.
+    """
+    writable = {
+        normalize_tag(space.name): space
+        for space, role in await list_spaces(session, user_id)
+        if role in WRITE_ROLES
+    }
+    for tag in split_tags(text):
+        space = writable.get(normalize_tag(tag))
+        if space is not None:
+            return space, remove_tag(text, tag)
+    return None, text

@@ -1,6 +1,6 @@
 """Parses free-form chat messages into tasks.
 
-Example: "Здати звіт завтра о 10:00 #робота !!!"
+Example: "Здати звіт завтра о 10:00 #робота !!!" or "Звіт #Бізнес !high @пт"
 """
 
 import re
@@ -13,9 +13,24 @@ from app.models import Priority
 _CATEGORY_RE = re.compile(r"(?<!\w)#(\w+)")
 _PRIORITY_RE = re.compile(r"(?<!\S)!(high|medium|low|!{0,2})(?!\S)", re.IGNORECASE)
 _TIME_RE = re.compile(r"(?:(?<!\w)(?:о|об|в|на|at)\s+)?(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])", re.IGNORECASE)
-_DATE_RE = re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})(?:\.(\d{2}|\d{4}))?(?![\d.])")
+_DATE_RE = re.compile(r"(?<![\d.])@?(\d{1,2})\.(\d{1,2})(?:\.(\d{2}|\d{4}))?(?![\d.])")
 _RELATIVE_DAYS = {"сьогодні": 0, "завтра": 1, "післязавтра": 2}
-_RELATIVE_RE = re.compile(r"(?<!\w)(" + "|".join(_RELATIVE_DAYS) + r")(?!\w)", re.IGNORECASE)
+_RELATIVE_RE = re.compile(r"(?<!\w)@?(" + "|".join(_RELATIVE_DAYS) + r")(?!\w)", re.IGNORECASE)
+_APOSTROPHE = "['’ʼ]?"
+_WEEKDAY_NAMES: tuple[tuple[str, str], ...] = (
+    ("пн", "понеділок"),
+    ("вт", "вівторок"),
+    ("ср", "серед[аую]"),
+    ("чт", "четвер"),
+    ("пт", f"п{_APOSTROPHE}ятниц[яюі]"),
+    ("сб", "субот[аиу]"),
+    ("нд", "неділ[яюі]"),
+)
+# Full names work with or without "@"; two-letter forms only after "@" ("@пт").
+_WEEKDAY_RES = tuple(
+    re.compile(rf"(?<!\w)(?:@(?:{short}|{full})|(?:(?:у|в|до|на)\s+)?(?:{full}))(?!\w)", re.IGNORECASE)
+    for short, full in _WEEKDAY_NAMES
+)
 
 _PRIORITY_TOKENS = {
     "": Priority.LOW,
@@ -66,6 +81,13 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
         day = _parse_date(match, now.date())
         if day is not None:
             line = line[: match.start()] + " " + line[match.end() :]
+    else:
+        for weekday, pattern in enumerate(_WEEKDAY_RES):
+            if match := pattern.search(line):
+                # Same weekday as today means today.
+                day = now.date() + timedelta(days=(weekday - now.weekday()) % 7)
+                line = line[: match.start()] + " " + line[match.end() :]
+                break
 
     at: time | None = None
     if match := _TIME_RE.search(line):
@@ -109,3 +131,21 @@ def _parse_date(match: re.Match[str], today: date) -> date | None:
     if not year_raw and parsed < today:
         parsed = parsed.replace(year=year + 1)
     return parsed
+
+
+def normalize_tag(value: str) -> str:
+    """"Бізнес", "#бізнес" and "Мій Бізнес" → comparable tag keys."""
+    return re.sub(r"[\s_\-#]+", "", value).lower()
+
+
+def split_tags(text: str) -> list[str]:
+    """Raw #tags of the first line, in order."""
+    first_line = text.strip().partition("\n")[0]
+    return [match.group(1) for match in _CATEGORY_RE.finditer(first_line)]
+
+
+def remove_tag(text: str, tag: str) -> str:
+    pattern = re.compile(rf"(?<!\w)#{re.escape(tag)}(?!\w)")
+    first_line, sep, rest = text.strip().partition("\n")
+    first_line = re.sub(r"\s{2,}", " ", pattern.sub(" ", first_line, count=1)).strip()
+    return first_line + sep + rest

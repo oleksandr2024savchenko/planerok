@@ -7,7 +7,7 @@ import logging
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from google.auth.exceptions import GoogleAuthError
@@ -608,14 +608,19 @@ async def _apply_change(
     task = await session.scalar(select(Task).where(Task.google_event_id == change.event_id))
     if task is None and change.planer_task_id is not None:
         candidate = await session.get(Task, change.planer_task_id)
-        if candidate is not None and (candidate.google_event_id in (None, change.event_id)):
+        if (
+            candidate is not None
+            and candidate.deleted_at is None
+            and candidate.google_event_id in (None, change.event_id)
+        ):
             task = candidate
 
     if change.cancelled:
         if task is None:
             return None, None
         task_id = task.id
-        await session.delete(task)
+        task.deleted_at = datetime.now(UTC)
+        task.google_event_id = None
         return None, task_id
 
     start = change.start

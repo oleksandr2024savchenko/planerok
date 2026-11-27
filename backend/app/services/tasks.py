@@ -1,13 +1,13 @@
 import logging
 from collections.abc import Sequence
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import scheduler
 from app.config import TIMEZONE
-from app.models import Task
+from app.models import Task, TaskStatus
 from app.services import users as users_service
 from app.schemas import TaskCreate, TaskScope, TaskUpdate
 
@@ -55,8 +55,17 @@ async def list_tasks(
     user_id: int,
     scope: TaskScope = TaskScope.ALL,
     category: str | None = None,
+    space_id: int | None = None,
+    status: TaskStatus | None = None,
 ) -> Sequence[Task]:
-    stmt = select(Task).where(Task.space_id.in_(users_service.member_space_ids(user_id)))
+    stmt = select(Task).where(
+        Task.space_id.in_(users_service.member_space_ids(user_id)),
+        Task.deleted_at.is_(None),
+    )
+    if space_id is not None:
+        stmt = stmt.where(Task.space_id == space_id)
+    if status is not None:
+        stmt = stmt.where(Task.status == status)
 
     today_start, tomorrow_start = _day_bounds()
     if scope is TaskScope.TODAY:
@@ -89,7 +98,7 @@ class SpaceAccessError(PermissionError):
 async def get_task(session: AsyncSession, user_id: int, task_id: int, *, write: bool = False) -> Task | None:
     """Returns the task only if the user is a member of its space (with write access when asked)."""
     task = await session.get(Task, task_id)
-    if task is None:
+    if task is None or task.deleted_at is not None:
         return None
     role = await users_service.get_role(session, user_id, task.space_id)
     if role is None or (write and role not in users_service.WRITE_ROLES):
@@ -110,6 +119,7 @@ async def create_task(
         space_id = await users_service.personal_space_id(session, user_id)
     elif not await users_service.can_write(session, user_id, space_id):
         raise SpaceAccessError(f"User {user_id} cannot write to space {space_id}")
+    payload["is_completed"] = payload["status"] is TaskStatus.DONE
     task = Task(space_id=space_id, created_by_id=user_id, **apply_schedule(payload))
     session.add(task)
     await session.commit()
@@ -127,7 +137,15 @@ async def update_task(
     *,
     push_google: bool = True,
 ) -> Task:
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    if "status" in changes:
+        changes["is_completed"] = changes["status"] is TaskStatus.DONE
+    elif "is_completed" in changes:
+        if changes["is_completed"]:
+            changes["status"] = TaskStatus.DONE
+        elif task.status is TaskStatus.DONE:
+            changes["status"] = TaskStatus.TODO
+    for field, value in changes.items():
         setattr(task, field, value)
     if task.start_time is not None and task.end_time is None:
         task.end_time = task.start_time + timedelta(hours=1)
@@ -140,9 +158,11 @@ async def update_task(
 
 
 async def delete_task(session: AsyncSession, task: Task, *, push_google: bool = True) -> None:
+    """Soft delete: the row stays for history/export, the reminder and Google event go away."""
     task_id = task.id
     event_id = task.google_event_id
-    await session.delete(task)
+    task.deleted_at = datetime.now(UTC)
+    task.google_event_id = None
     await session.commit()
     scheduler.cancel_reminder(task_id)
     if push_google and event_id:

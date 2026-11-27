@@ -4,7 +4,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from app.config import TIMEZONE
-from app.models import Priority, SpaceKind, SpaceRole
+from app.models import Priority, SpaceKind, SpaceRole, TaskStatus
 
 
 def _to_vienna(value: datetime | None) -> datetime | None:
@@ -28,6 +28,7 @@ class TaskCreate(BaseModel):
     description: str | None = None
     category: str | None = Field(default=None, max_length=64)
     priority: Priority = Priority.MEDIUM
+    status: TaskStatus = TaskStatus.TODO
     deadline: datetime | None = None
     remind_at: datetime | None = None
     start_time: datetime | None = None
@@ -44,13 +45,16 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     category: str | None = Field(default=None, max_length=64)
     priority: Priority | None = None
+    status: TaskStatus | None = None
+    # Moves the task; requires write access to the target space.
+    space_id: int | None = None
     deadline: datetime | None = None
     remind_at: datetime | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     is_completed: bool | None = None
 
-    @field_validator("title", "priority", "is_completed")
+    @field_validator("title", "priority", "status", "space_id", "is_completed")
     @classmethod
     def _not_null(cls, value: object) -> object:
         if value is None:
@@ -79,10 +83,12 @@ class TaskRead(BaseModel):
     end_time: datetime | None
     google_event_id: str | None
     sync_token: str | None
+    status: TaskStatus
     is_completed: bool
     created_at: datetime
+    updated_at: datetime
 
-    @field_serializer("deadline", "remind_at", "start_time", "end_time", "created_at")
+    @field_serializer("deadline", "remind_at", "start_time", "end_time", "created_at", "updated_at")
     def _serialize_dt(self, value: datetime | None) -> str | None:
         localized = _to_vienna(value)
         return localized.isoformat() if localized else None
@@ -108,6 +114,18 @@ class SpaceRead(BaseModel):
     icon: str | None
     kind: SpaceKind
     role: SpaceRole
+
+
+class SpaceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    color: str | None = Field(default=None, max_length=16)
+    icon: str | None = Field(default=None, max_length=32)
+
+
+class SpaceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    color: str | None = Field(default=None, max_length=16)
+    icon: str | None = Field(default=None, max_length=32)
 
 
 class MeRead(BaseModel):

@@ -89,6 +89,13 @@ class Priority(StrEnum):
     HIGH = "high"
 
 
+class TaskStatus(StrEnum):
+    BACKLOG = "backlog"
+    TODO = "todo"
+    DOING = "doing"
+    DONE = "done"
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -111,8 +118,16 @@ class Task(Base):
     google_event_id: Mapped[str | None] = mapped_column(String(255), unique=True)
     # Cursor of the Google sync that last wrote this row. The calendar-level token lives on GoogleCalendarState.
     sync_token: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[TaskStatus] = mapped_column(
+        _enum(TaskStatus, "task_status"), default=TaskStatus.TODO, server_default=TaskStatus.TODO.value
+    )
+    # Kept in sync with status (done ⇔ completed) for older clients.
     is_completed: Mapped[bool] = mapped_column(default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
     def __repr__(self) -> str:
         return f"Task(id={self.id!r}, title={self.title!r})"

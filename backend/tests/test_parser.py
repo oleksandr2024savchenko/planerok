@@ -60,3 +60,46 @@ def test_exclamation_inside_word_is_not_priority() -> None:
 def test_empty_title_raises() -> None:
     with pytest.raises(EmptyTitleError):
         parse_task("#робота завтра", now=NOW)
+
+
+def test_at_date_tokens() -> None:
+    assert parse_task("Звіт @завтра", now=NOW).deadline == datetime(2026, 11, 4, 23, 59, tzinfo=TIMEZONE)
+    parsed = parse_task("Подарунок @25.12", now=NOW)
+    assert parsed.title == "Подарунок"
+    assert parsed.deadline == datetime(2026, 12, 25, 23, 59, tzinfo=TIMEZONE)
+
+
+@pytest.mark.parametrize(
+    ("text", "day"),
+    [
+        ("Звіт @пт", 6),  # NOW is Tuesday 3.11 → Friday 6.11
+        ("Звіт у п'ятницю о 18:00", 6),
+        ("Зал @вт", 3),  # same weekday → today
+        ("Зал @нд", 8),
+    ],
+)
+def test_weekdays(text: str, day: int) -> None:
+    parsed = parse_task(text, now=NOW)
+    assert parsed.title in {"Звіт", "Зал"}
+    assert parsed.deadline is not None
+    assert parsed.deadline.date() == datetime(2026, 11, day).date()
+
+
+def test_plan_example_with_space_tag_and_priority() -> None:
+    parsed = parse_task("Звіт #Бізнес !high @завтра", now=NOW)
+    assert parsed.title == "Звіт"
+    assert parsed.category == "бізнес"
+    assert parsed.priority is Priority.HIGH
+    assert parsed.deadline == datetime(2026, 11, 4, 23, 59, tzinfo=TIMEZONE)
+
+
+def test_short_weekday_needs_at_sign() -> None:
+    assert parse_task("Купити пт фарбу", now=NOW).deadline is None
+
+
+def test_tag_helpers() -> None:
+    from app.bot.parser import normalize_tag, remove_tag, split_tags
+
+    assert split_tags("Звіт #Бізнес !high #x\n#ignored") == ["Бізнес", "x"]
+    assert remove_tag("Звіт #Бізнес !high", "Бізнес") == "Звіт !high"
+    assert normalize_tag("Мій Бізнес") == normalize_tag("#мій_бізнес") == "мійбізнес"
