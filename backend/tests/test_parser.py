@@ -103,3 +103,21 @@ def test_tag_helpers() -> None:
     assert split_tags("Звіт #Бізнес !high #x\n#ignored") == ["Бізнес", "x"]
     assert remove_tag("Звіт #Бізнес !high", "Бізнес") == "Звіт !high"
     assert normalize_tag("Мій Бізнес") == normalize_tag("#мій_бізнес") == "мійбізнес"
+
+
+@pytest.mark.parametrize(
+    ("text", "rule", "deadline"),
+    [
+        ("Зал щодня о 18:00", "FREQ=DAILY", datetime(2026, 11, 3, 18, 0, tzinfo=TIMEZONE)),
+        ("Вітаміни @щодня о 9:00", "FREQ=DAILY", datetime(2026, 11, 4, 9, 0, tzinfo=TIMEZONE)),
+        ("Звіт щоп'ятниці", "FREQ=WEEKLY;BYDAY=FR", datetime(2026, 11, 6, 23, 59, tzinfo=TIMEZONE)),
+        ("Планування @щопн о 10:00", "FREQ=WEEKLY;BYDAY=MO", datetime(2026, 11, 9, 10, 0, tzinfo=TIMEZONE)),
+        ("Стендап по буднях о 9:30", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", datetime(2026, 11, 4, 9, 30, tzinfo=TIMEZONE)),
+        ("Оренда щомісяця 05.12", "FREQ=MONTHLY", datetime(2026, 12, 5, 23, 59, tzinfo=TIMEZONE)),
+    ],
+)
+def test_recurrence_markers(text: str, rule: str, deadline: datetime) -> None:
+    parsed = parse_task(text, now=NOW)
+    assert parsed.recurrence == rule
+    assert parsed.deadline == deadline
+    assert parsed.title in {"Зал", "Вітаміни", "Звіт", "Планування", "Стендап", "Оренда"}

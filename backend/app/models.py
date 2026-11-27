@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, false, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, false, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -96,6 +96,21 @@ class TaskStatus(StrEnum):
     DONE = "done"
 
 
+class Recurrence(TimestampMixin, Base):
+    """A repeating series. Only one open task of a series exists at a time."""
+
+    __tablename__ = "recurrences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    # RRULE subset, see app.services.recurrence.
+    rule: Mapped[str] = mapped_column(String(128))
+    # First due day; intervals are counted from it.
+    starts_on: Mapped[date] = mapped_column(Date)
+    streak_current: Mapped[int] = mapped_column(default=0, server_default="0")
+    streak_best: Mapped[int] = mapped_column(default=0, server_default="0")
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -128,6 +143,22 @@ class Task(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    recurrence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recurrences.id", ondelete="SET NULL"), index=True
+    )
+    recurrence: Mapped[Recurrence | None] = relationship(lazy="joined")
+
+    @property
+    def recurrence_rule(self) -> str | None:
+        return self.recurrence.rule if self.recurrence is not None else None
+
+    @property
+    def streak_current(self) -> int | None:
+        return self.recurrence.streak_current if self.recurrence is not None else None
+
+    @property
+    def streak_best(self) -> int | None:
+        return self.recurrence.streak_best if self.recurrence is not None else None
 
     def __repr__(self) -> str:
         return f"Task(id={self.id!r}, title={self.title!r})"

@@ -10,14 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callbacks import TaskAction, TaskActionCallback
 from app.bot.keyboards import created_tasks_keyboard
-from app.bot.parser import EmptyTitleError, parse_task
+from app.bot.parser import EmptyTitleError, normalize_tag, parse_task
 from app.bot.states import TaskEdit
 from app.bot.texts import ASK_NEW_TIME_TEXT, created_list_text, format_dt, task_details
 from app.config import get_settings
-from app.models import Space, Task, User
-from app.services import users as users_service
+from app.models import Space, SpaceKind, Task, User
 from app.schemas import TaskUpdate
 from app.services import tasks as tasks_service
+from app.services import users as users_service
 from app.services.ai_agent import (
     CATEGORY_SLUGS,
     ParsedTask,
@@ -46,13 +46,18 @@ def _regex_fallback(text: str) -> TaskExtractionResult:
         priority=parsed.priority.value,  # type: ignore[arg-type]
         deadline=parsed.deadline,
         remind_at=parsed.remind_at,
+        recurrence=parsed.recurrence,
     )
     return TaskExtractionResult(tasks=[finalize_task(task)])
 
 
-async def _extract(text: str | None = None, audio_bytes: bytes | None = None) -> TaskExtractionResult:
+async def _extract(
+    text: str | None = None,
+    audio_bytes: bytes | None = None,
+    spaces: list[str] | None = None,
+) -> TaskExtractionResult:
     try:
-        result = await parse_input_to_tasks(text=text, audio_bytes=audio_bytes)
+        result = await parse_input_to_tasks(text=text, audio_bytes=audio_bytes, spaces=spaces or ())
     except TaskExtractionError:
         if text:
             logger.warning("Gemini failed, falling back to heuristic parser")
@@ -71,25 +76,40 @@ async def _persist_tasks(
     user_id: int,
     extraction: TaskExtractionResult,
     space: Space | None = None,
+    writable: dict[str, Space] | None = None,
 ) -> list[Task]:
+    """An explicit #tag wins; otherwise the space Gemini recognised, otherwise the personal one."""
     created: list[Task] = []
     for parsed in extraction.tasks:
         payload = to_task_create(parsed)
-        if space is not None:
-            payload = payload.model_copy(update={"space_id": space.id})
+        target = space or (writable or {}).get(normalize_tag(parsed.space or ""))
+        if target is not None:
+            payload = payload.model_copy(update={"space_id": target.id})
         created.append(await tasks_service.create_task(session, user_id, payload))
     return created
+
+
+async def _writable_spaces(session: AsyncSession, user: User) -> dict[str, Space]:
+    return {
+        normalize_tag(space.name): space
+        for space, role in await users_service.list_spaces(session, user.id)
+        if role in users_service.WRITE_ROLES
+    }
 
 
 async def _reply_with_tasks(
     message: Message,
     tasks: list[Task],
     status: Message | None = None,
-    space: Space | None = None,
+    writable: dict[str, Space] | None = None,
 ) -> None:
     text = created_list_text(tasks)
-    if space is not None:
-        text = f"📂 {escape(space.name)}\n{text}"
+    by_id = {space.id: space for space in (writable or {}).values()}
+    names = sorted(
+        {by_id[t.space_id].name for t in tasks if t.space_id in by_id and by_id[t.space_id].kind is not SpaceKind.PERSONAL}
+    )
+    if names:
+        text = f"📂 {escape(', '.join(names))}\n{text}"
     markup = created_tasks_keyboard([task.id for task in tasks], get_settings().webapp_url)
     if status is not None:
         await status.edit_text(text, reply_markup=markup)
@@ -198,8 +218,9 @@ async def on_voice_task(message: Message, session: AsyncSession, user: User) -> 
             await status.edit_text("🎙 Не вдалося завантажити голосове. Надішли його ще раз.")
             return
 
+        writable = await _writable_spaces(session, user)
         try:
-            extraction = await _extract(audio_bytes=audio_bytes)
+            extraction = await _extract(audio_bytes=audio_bytes, spaces=[s.name for s in writable.values()])
         except TaskExtractionError as exc:
             logger.exception("Voice recognition failed for user %s", message.from_user.id)
             await status.edit_text(f"🎙 {exc}")
@@ -210,8 +231,8 @@ async def on_voice_task(message: Message, session: AsyncSession, user: User) -> 
             await status.edit_text("🤔 Не почув жодного завдання. Спробуй ще раз, трохи конкретніше.")
             return
 
-        created = await _persist_tasks(session, user.id, extraction)
-        await _reply_with_tasks(message, created, status=status)
+        created = await _persist_tasks(session, user.id, extraction, writable=writable)
+        await _reply_with_tasks(message, created, status=status, writable=writable)
     except Exception:
         logger.exception(
             "Voice handler crashed for user %s message %s",
@@ -233,8 +254,9 @@ async def quick_create_task(message: Message, session: AsyncSession, user: User)
     status = await message.reply("🧠 Розпізнаю задачу...")
 
     space, text = await users_service.resolve_space_tag(session, user.id, message.text)
+    writable = await _writable_spaces(session, user)
     try:
-        extraction = await _extract(text=text)
+        extraction = await _extract(text=text, spaces=None if space else [s.name for s in writable.values()])
     except (TaskExtractionError, EmptyTitleError):
         await status.edit_text(
             "🤔 Не бачу назви задачі. Напиши, наприклад: <code>завтра на 10 ранку зал</code>"
@@ -245,5 +267,5 @@ async def quick_create_task(message: Message, session: AsyncSession, user: User)
         await status.edit_text("🤔 Не вдалося витягти завдання. Сформулюй конкретніше.")
         return
 
-    created = await _persist_tasks(session, user.id, extraction, space)
-    await _reply_with_tasks(message, created, status=status, space=space)
+    created = await _persist_tasks(session, user.id, extraction, space, writable)
+    await _reply_with_tasks(message, created, status=status, writable=writable)

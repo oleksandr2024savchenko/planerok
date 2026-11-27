@@ -3,6 +3,7 @@ from html import escape
 
 from app.config import TIMEZONE
 from app.models import Priority, Task
+from app.services.recurrence import describe
 
 PRIORITY_LABELS: dict[Priority, str] = {
     Priority.LOW: "▫️ Низький",
@@ -36,6 +37,11 @@ def task_details(task: Task) -> str:
         lines.append(f"📅 Дедлайн: {format_dt(task.deadline)}")
     if task.remind_at and not task.is_completed:
         lines.append(f"🔔 Нагадування: {format_dt(task.remind_at)}")
+    if task.recurrence_rule:
+        repeat = f"🔁 {describe(task.recurrence_rule)}"
+        if task.streak_current:
+            repeat += f" · 🔥 {task.streak_current} поспіль"
+        lines.append(repeat)
     return "\n".join(lines)
 
 

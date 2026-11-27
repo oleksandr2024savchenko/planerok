@@ -115,3 +115,19 @@ def test_to_task_create_maps_category_to_ukrainian_slug() -> None:
     )
     assert created.category == "тренування"
     assert created.priority is Priority.LOW
+
+
+def test_prompt_lists_spaces_and_recurrence_rules() -> None:
+    prompt = build_system_prompt(NOW, ["Особисте", "Бізнес"])
+    assert "«Бізнес»" in prompt
+    assert "FREQ=WEEKLY;BYDAY=MO" in prompt
+
+
+def test_parsed_task_keeps_valid_rule_and_drops_invalid() -> None:
+    from app.services.ai_agent import ParsedTask
+
+    ok = ParsedTask(title="Зал", category="training", recurrence="freq=daily", space=" Бізнес ")
+    assert (ok.recurrence, ok.space) == ("FREQ=DAILY", "Бізнес")
+    bad = ParsedTask(title="Зал", category="training", recurrence="FREQ=YEARLY", space="")
+    assert (bad.recurrence, bad.space) == (None, None)
+    assert to_task_create(ok).recurrence == "FREQ=DAILY"

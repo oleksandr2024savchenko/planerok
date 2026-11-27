@@ -9,6 +9,7 @@ from datetime import date, datetime, time, timedelta
 
 from app.config import TIMEZONE
 from app.models import Priority
+from app.services.recurrence import first_occurrence, next_occurrence, parse_rule
 
 _CATEGORY_RE = re.compile(r"(?<!\w)#(\w+)")
 _PRIORITY_RE = re.compile(r"(?<!\S)!(high|medium|low|!{0,2})(?!\S)", re.IGNORECASE)
@@ -25,6 +26,22 @@ _WEEKDAY_NAMES: tuple[tuple[str, str], ...] = (
     ("пт", f"п{_APOSTROPHE}ятниц[яюі]"),
     ("сб", "субот[аиу]"),
     ("нд", "неділ[яюі]"),
+)
+_RECURRENCE_PATTERNS: tuple[tuple[str, str], ...] = (
+    (r"щодня|щоденно|@щодня", "FREQ=DAILY"),
+    (r"по\s+буднях|@будні", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"),
+    (r"щотижня|@щотижня", "FREQ=WEEKLY"),
+    (r"щомісяця|@щомісяця", "FREQ=MONTHLY"),
+    (r"щопонеділка|@щопн", "FREQ=WEEKLY;BYDAY=MO"),
+    (r"щовівторка|@щовт", "FREQ=WEEKLY;BYDAY=TU"),
+    (r"щосереди|@щоср", "FREQ=WEEKLY;BYDAY=WE"),
+    (r"щочетверга|@щочт", "FREQ=WEEKLY;BYDAY=TH"),
+    (rf"щоп{_APOSTROPHE}ятниці|@щопт", "FREQ=WEEKLY;BYDAY=FR"),
+    (r"щосуботи|@щосб", "FREQ=WEEKLY;BYDAY=SA"),
+    (r"щонеділі|@щонд", "FREQ=WEEKLY;BYDAY=SU"),
+)
+_RECURRENCE_RES = tuple(
+    (re.compile(rf"(?<!\w)(?:{pattern})(?!\w)", re.IGNORECASE), rule) for pattern, rule in _RECURRENCE_PATTERNS
 )
 # Full names work with or without "@"; two-letter forms only after "@" ("@пт").
 _WEEKDAY_RES = tuple(
@@ -52,6 +69,7 @@ class ParsedTask:
     priority: Priority = Priority.MEDIUM
     deadline: datetime | None = None
     remind_at: datetime | None = None
+    recurrence: str | None = None
 
 
 class EmptyTitleError(ValueError):
@@ -73,6 +91,13 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
         priority = _PRIORITY_TOKENS[match.group(1).lower()]
         line = line[: match.start()] + " " + line[match.end() :]
 
+    recurrence: str | None = None
+    for pattern, rule in _RECURRENCE_RES:
+        if match := pattern.search(line):
+            recurrence = rule
+            line = line[: match.start()] + " " + line[match.end() :]
+            break
+
     day: date | None = None
     if match := _RELATIVE_RE.search(line):
         day = now.date() + timedelta(days=_RELATIVE_DAYS[match.group(1).lower()])
@@ -93,6 +118,12 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
     if match := _TIME_RE.search(line):
         at = time(int(match.group(1)), int(match.group(2)))
         line = line[: match.start()] + " " + line[match.end() :]
+
+    if recurrence is not None and day is None:
+        rule = parse_rule(recurrence)
+        day = first_occurrence(rule, now.date())
+        if at is not None and datetime.combine(day, at, tzinfo=TIMEZONE) <= now:
+            day = next_occurrence(rule, day, day)
 
     title = re.sub(r"\s+", " ", line).strip(" ,.-")
     if not title:
@@ -116,6 +147,7 @@ def parse_task(text: str, now: datetime | None = None) -> ParsedTask:
         priority=priority,
         deadline=deadline,
         remind_at=remind_at,
+        recurrence=recurrence,
     )
 
 

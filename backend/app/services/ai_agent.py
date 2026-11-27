@@ -6,6 +6,7 @@ import logging
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from datetime import datetime, time, timedelta
 from functools import lru_cache
 from typing import Literal
@@ -17,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.config import TIMEZONE, get_settings
 from app.models import Priority
 from app.schemas import TaskCreate, _to_vienna
+from app.services.recurrence import InvalidRuleError, normalize_rule
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,24 @@ class ParsedTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: datetime | None = Field(default=None, description="Event/due time as ISO 8601.")
     remind_at: datetime | None = Field(default=None, description="Reminder time as ISO 8601.")
+    recurrence: str | None = Field(default=None, description="RRULE subset, or null for one-off tasks.")
+    space: str | None = Field(default=None, description="Name of one of the user's spaces, or null.")
+
+    @field_validator("recurrence", mode="before")
+    @classmethod
+    def _lenient_rule(cls, value: object) -> object:
+        # A model hallucinating an unsupported rule must not lose the task.
+        if not isinstance(value, str):
+            return None
+        try:
+            return normalize_rule(value)
+        except InvalidRuleError:
+            return None
+
+    @field_validator("space", mode="before")
+    @classmethod
+    def _blank_space(cls, value: object) -> object:
+        return value.strip() or None if isinstance(value, str) else None
 
     @field_validator("category", mode="before")
     @classmethod
@@ -113,6 +133,8 @@ class _GeminiTask(BaseModel):
     priority: Literal["low", "medium", "high"] = "medium"
     deadline: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
     remind_at: str | None = Field(default=None, description="ISO 8601 timestamp with offset, or null.")
+    recurrence: str | None = Field(default=None, description="RRULE like FREQ=WEEKLY;BYDAY=MO, or null.")
+    space: str | None = Field(default=None, description="Exact name of one of the user's spaces, or null.")
 
 
 class _GeminiExtraction(BaseModel):
@@ -121,9 +143,10 @@ class _GeminiExtraction(BaseModel):
     tasks: list[_GeminiTask] = Field(default_factory=list)
 
 
-def build_system_prompt(now: datetime | None = None) -> str:
+def build_system_prompt(now: datetime | None = None, spaces: Sequence[str] = ()) -> str:
     now = (now or datetime.now(TIMEZONE)).astimezone(TIMEZONE)
     weekday = WEEKDAYS_UK[now.weekday()]
+    space_list = ", ".join(f"«{name}»" for name in spaces) or "немає"
     return (
         "Ти агент персонального планера. Витягни всі завдання з повідомлення користувача.\n"
         f"Поточний час (Europe/Vienna): {now.isoformat(timespec='minutes')} "
@@ -138,9 +161,16 @@ def build_system_prompt(now: datetime | None = None) -> str:
         "- Якщо названо лише час нагадування — запиши його в remind_at і deadline.\n"
         "- Маркери: !high або !!! → high, !medium або !! → medium, !low або ! → low; "
         "@завтра, @пт, @25.12 — дата (прибери маркер з title).\n"
+        "- recurrence: якщо справу треба повторювати — RRULE: FREQ=DAILY (щодня), "
+        "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR (по буднях), FREQ=WEEKLY;BYDAY=MO (щопонеділка), "
+        "FREQ=MONTHLY;BYMONTHDAY=5 (щомісяця 5-го), INTERVAL=2 для «кожні два». Інакше null. "
+        "deadline — найближче повторення.\n"
+        f"- space: простори користувача: {space_list}. Якщо зі змісту явно видно простір "
+        "(«для бізнесу», «в спільне»), поверни його точну назву зі списку; інакше null.\n"
         "- Кілька справ в одному повідомленні → кілька елементів у tasks.\n"
         "- Якщо завдань немає, поверни порожній список tasks.\n"
-        '- Відповідь — лише JSON {"tasks":[{"title","description","category","priority","deadline","remind_at"}]}.'
+        '- Відповідь — лише JSON {"tasks":[{"title","description","category","priority","deadline",'
+        '"remind_at","recurrence","space"}]}.'
     )
 
 
@@ -163,6 +193,7 @@ def to_task_create(task: ParsedTask) -> TaskCreate:
         priority=Priority(task.priority),
         deadline=task.deadline,
         remind_at=task.remind_at,
+        recurrence=task.recurrence,
     )
 
 
@@ -300,9 +331,10 @@ async def _generate(
     parts: list[types.Part | str],
     now: datetime,
     schema: type[BaseModel] | None,
+    spaces: Sequence[str] = (),
 ) -> object:
     config_kwargs: dict[str, object] = {
-        "system_instruction": build_system_prompt(now),
+        "system_instruction": build_system_prompt(now, spaces),
         "temperature": 0.1,
         "response_mime_type": "application/json",
     }
@@ -318,6 +350,7 @@ async def _generate(
 async def parse_input_to_tasks(
     text: str | None = None,
     audio_bytes: bytes | None = None,
+    spaces: Sequence[str] = (),
 ) -> TaskExtractionResult:
     cleaned = text.strip() if text else None
     if not cleaned and not audio_bytes:
@@ -338,7 +371,7 @@ async def parse_input_to_tasks(
     for audio, schema in attempts:
         mime = audio[1] if audio else "text"
         try:
-            response = await _generate(_content_parts(text=cleaned, audio=audio), now, schema)
+            response = await _generate(_content_parts(text=cleaned, audio=audio), now, schema, spaces)
             break
         except TaskExtractionError:
             raise
