@@ -1,9 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-
+import { ChoiceChip, SegmentedControl } from "@/components/SegmentedControl";
 import { cn } from "@/lib/cn";
-import { FILTERS, type FilterId } from "@/lib/filters";
+import { AUDIENCES, FILTERS, type AudienceId, type FilterId } from "@/lib/filters";
 import { haptic } from "@/lib/telegram";
 
 interface FilterPillsProps {
@@ -12,44 +11,54 @@ interface FilterPillsProps {
   onChange: (value: FilterId) => void;
 }
 
+export function AudiencePills({
+  value,
+  onChange,
+}: {
+  value: AudienceId;
+  onChange: (value: AudienceId) => void;
+}) {
+  return (
+    <SegmentedControl
+      fullWidth
+      layoutId="audience"
+      value={value}
+      options={AUDIENCES}
+      onChange={(next) => {
+        haptic.selection();
+        onChange(next);
+      }}
+      className="mb-3"
+    />
+  );
+}
+
 export function FilterPills({ value, counts, onChange }: FilterPillsProps) {
   return (
-    <nav className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 py-1">
+    <nav className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 py-1.5">
       {FILTERS.map((filter) => {
         const active = filter.id === value;
         return (
-          <button
+          <ChoiceChip
             key={filter.id}
-            type="button"
+            layoutId="active-filter"
+            active={active}
             onClick={() => {
               if (active) return;
               haptic.selection();
               onChange(filter.id);
             }}
-            className={cn(
-              "relative flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-              active
-                ? "border-purple-500/50 text-purple-100"
-                : "border-white/5 bg-zinc-900/60 text-zinc-400 hover:border-purple-500/30 hover:text-zinc-200",
-            )}
           >
-            {active && (
-              <motion.span
-                layoutId="active-filter"
-                className="absolute inset-0 rounded-full bg-purple-500/15 shadow-[0_0_20px_rgba(168,85,247,0.25)]"
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              />
-            )}
-            <span className="relative">{filter.label}</span>
+            <span>{filter.label}</span>
             <span
               className={cn(
-                "relative min-w-5 rounded-full px-1.5 text-center font-mono text-[11px] tabular-nums",
-                active ? "bg-purple-500/25 text-purple-100" : "bg-white/5 text-zinc-500",
+                "min-w-5 rounded-full px-1.5 text-center font-mono text-[11px] tabular-nums transition-colors duration-300",
+                active ? "bg-white/25 text-white" : "bg-white/10 text-zinc-500",
               )}
             >
               {counts[filter.id] ?? 0}
             </span>
-          </button>
+          </ChoiceChip>
         );
       })}
     </nav>

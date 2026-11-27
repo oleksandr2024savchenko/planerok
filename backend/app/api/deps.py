@@ -21,9 +21,12 @@ async def get_current_user_id(
             )
         except InitDataError as exc:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Invalid Telegram initData: {exc}") from exc
-        return int(user["id"])
+        telegram_id = int(user["id"])
+        if not settings.allows(telegram_id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Немає доступу")
+        return telegram_id
 
-    if settings.dev_user_id is not None:
+    if settings.dev_user_id is not None and settings.allows(settings.dev_user_id):
         return settings.dev_user_id
 
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing X-Telegram-Init-Data header")

@@ -9,7 +9,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 
 from app.bot.handlers import get_root_router
-from app.bot.middlewares import DbSessionMiddleware
+from app.bot.middlewares import AllowlistMiddleware, DbSessionMiddleware
 from app.config import Settings
 from app.db import session_factory
 
@@ -23,9 +23,12 @@ def create_bot(settings: Settings) -> Bot:
 def create_dispatcher(settings: Settings) -> Dispatcher:
     storage: BaseStorage = RedisStorage.from_url(settings.redis_url) if settings.redis_url else MemoryStorage()
     dp = Dispatcher(storage=storage)
-    middleware = DbSessionMiddleware(session_factory)
-    dp.message.middleware(middleware)
-    dp.callback_query.middleware(middleware)
+    allowlist = AllowlistMiddleware()
+    db = DbSessionMiddleware(session_factory)
+    dp.message.middleware(allowlist)
+    dp.callback_query.middleware(allowlist)
+    dp.message.middleware(db)
+    dp.callback_query.middleware(db)
     dp.include_router(get_root_router())
     return dp
 

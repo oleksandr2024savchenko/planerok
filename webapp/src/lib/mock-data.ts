@@ -1,4 +1,5 @@
 import { addDays, todayKey, viennaToDate } from "./date";
+import { remindAtFor } from "./reminders";
 import type { Task, TaskCreate } from "./types";
 
 function at(dayOffset: number, time: string): string {
@@ -23,6 +24,7 @@ export function createMockTasks(): Task[] {
       priority: "high",
       ...block(0, "15:00"),
       remind_at: at(0, "14:30"),
+      remind_before_minutes: 30,
       google_event_id: "gcal-demo-1",
       sync_token: "demo-sync",
       is_completed: false,
@@ -40,6 +42,22 @@ export function createMockTasks(): Task[] {
       sync_token: null,
       is_completed: true,
       created_at: created,
+    },
+    {
+      id: -1,
+      title: "Лекція з календаря",
+      description: "Аудиторія 204",
+      category: null,
+      priority: "medium",
+      ...block(0, "11:00"),
+      remind_at: null,
+      google_event_id: null,
+      sync_token: null,
+      is_completed: false,
+      created_at: created,
+      read_only: true,
+      all_day: false,
+      source_name: "Університет",
     },
     {
       id: 3,
@@ -87,7 +105,8 @@ export function createMockTasks(): Task[] {
       category: "робота",
       priority: "high",
       ...block(3, "10:00"),
-      remind_at: at(3, "09:00"),
+      remind_at: at(2, "10:00"),
+      remind_before_minutes: 24 * 60,
       google_event_id: "gcal-demo-6",
       sync_token: "demo-sync",
       is_completed: false,
@@ -106,8 +125,44 @@ export function createMockTasks(): Task[] {
       is_completed: false,
       created_at: created,
     },
+    {
+      id: 8,
+      title: "Забрати посилку на пошті",
+      description: "Номер ТТН у чаті",
+      category: "особисте",
+      priority: "medium",
+      ...block(0, "18:00"),
+      remind_at: at(0, "17:30"),
+      remind_before_minutes: 30,
+      google_event_id: null,
+      sync_token: null,
+      is_completed: false,
+      owner_id: MOCK_ME,
+      created_by_id: MOCK_PARTNER,
+      created_at: created,
+    },
+    {
+      id: 9,
+      title: "Записатися на манікюр",
+      description: null,
+      category: "особисте",
+      priority: "medium",
+      ...block(1, "12:00"),
+      remind_at: at(1, "11:00"),
+      remind_before_minutes: 60,
+      google_event_id: null,
+      sync_token: null,
+      is_completed: false,
+      owner_id: MOCK_PARTNER,
+      assigned_to_id: MOCK_PARTNER,
+      created_by_id: MOCK_ME,
+      created_at: created,
+    },
   ];
 }
+
+const MOCK_ME = 969740172;
+const MOCK_PARTNER = 729424163;
 
 let mockId = 1000;
 
@@ -119,7 +174,17 @@ export function buildMockTask(data: TaskCreate): Task {
     category: data.category ?? null,
     priority: data.priority ?? "medium",
     deadline: data.deadline ?? data.end_time ?? null,
-    remind_at: data.remind_at ?? null,
+    remind_at:
+      data.remind_at ??
+      remindAtFor(
+        { start_time: data.start_time ?? null, deadline: data.deadline ?? data.end_time ?? null },
+        data.remind_before_minutes,
+      ),
+    remind_before_minutes: data.remind_before_minutes ?? null,
+    is_shared: data.assignee ? data.assignee === "shared" : Boolean(data.is_shared),
+    owner_id: data.assignee === "partner" ? MOCK_PARTNER : MOCK_ME,
+    assigned_to_id: data.assignee === "partner" ? MOCK_PARTNER : null,
+    created_by_id: MOCK_ME,
     start_time: data.start_time ?? null,
     end_time: data.end_time ?? null,
     google_event_id: null,

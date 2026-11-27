@@ -3,6 +3,7 @@ from html import escape
 
 from app.config import TIMEZONE
 from app.models import Priority, Task
+from app.services.reminders import format_offset
 
 PRIORITY_LABELS: dict[Priority, str] = {
     Priority.LOW: "▫️ Низький",
@@ -31,16 +32,39 @@ def task_details(task: Task) -> str:
     if task.category:
         meta.append(f"#{escape(task.category)}")
     meta.append(PRIORITY_LABELS[task.priority])
+    if getattr(task, "is_shared", False):
+        meta.append("⚡️ Спільна")
     lines.append(" · ".join(meta))
     if task.deadline:
         lines.append(f"📅 Дедлайн: {format_dt(task.deadline)}")
     if task.remind_at and not task.is_completed:
-        lines.append(f"🔔 Нагадування: {format_dt(task.remind_at)}")
+        relative = f" ({format_offset(task.remind_before_minutes)})" if task.remind_before_minutes is not None else ""
+        lines.append(f"🔔 Нагадування: {format_dt(task.remind_at)}{relative}")
     return "\n".join(lines)
 
 
-def reminder_text(task: Task) -> str:
-    return f"⏰ <b>Нагадування</b>\n\n{task_details(task)}"
+def format_minutes(seconds: int) -> str:
+    minutes = max(int(round(seconds / 60)), 0)
+    hours, rest = divmod(minutes, 60)
+    if hours and rest:
+        return f"{hours} год {rest:02d} хв"
+    if hours:
+        return f"{hours} год"
+    return f"{rest} хв"
+
+
+def reminder_text(task: Task, *, nag_count: int = 0, nagging: bool = False) -> str:
+    if nag_count > 0:
+        header = f"🔥 <b>Додовбувач</b> · нагадую вже {nag_count + 1}-й раз"
+    else:
+        header = "⏰ <b>Нагадування</b>"
+    footer = ""
+    if nagging:
+        from app.services.reminders import nag_settings
+
+        minutes = int(nag_settings()[0].total_seconds() // 60)
+        footer = f"\n\n<i>Високий пріоритет: нагадуватиму кожні {minutes} хв, доки не виконаєш.</i>"
+    return f"{header}\n\n{task_details(task)}{footer}"
 
 
 def created_text(task: Task) -> str:
@@ -62,13 +86,24 @@ ASK_NEW_TIME_TEXT = (
 )
 
 
+ASK_REMIND_OFFSET_TEXT = "🔔 За скільки до події нагадати?"
+
+ASK_CUSTOM_OFFSET_TEXT = (
+    "✏️ Напиши, за скільки до події нагадати.\n"
+    "Наприклад: <code>45 хв</code>, <code>2 години</code>, <code>3 дні</code> або <code>1 тиждень</code>."
+)
+
+NO_EVENT_TIME_TEXT = "У задачі немає дати — спершу додай дату, а тоді нагадування «за … до»."
+
+
 START_TEXT = (
     "👋 Привіт! Я твій персональний планер.\n\n"
     "Напиши задачу звичайною мовою або надішли <b>голосове</b> — я сам розпізнаю "
     "назву, категорію, дедлайн і нагадування.\n\n"
     "Наприклад:\n"
     "• <code>завтра на 10 ранку зал</code>\n"
-    "• <code>Здати звіт у п'ятницю о 18:00, після цього купити продукти</code>\n\n"
+    "• <code>Здати звіт у п'ятницю о 18:00, після цього купити продукти</code>\n"
+    "• <code>Лікар 25.11 о 14:00, нагадай за день</code>\n\n"
     "А для повного огляду відкрий планер 👇"
 )
 
