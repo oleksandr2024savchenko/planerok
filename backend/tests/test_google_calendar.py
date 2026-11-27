@@ -15,7 +15,8 @@ NOW = datetime(2026, 11, 4, 9, 0, tzinfo=TIMEZONE)
 def test_event_body_uses_vienna_timezone() -> None:
     task = Task(
         id=7,
-        user_id=1,
+        space_id=1,
+        created_by_id=1,
         title="Зал",
         description="Спина",
         start_time=datetime(2026, 11, 4, 18, 0, tzinfo=TIMEZONE),
@@ -33,7 +34,8 @@ def test_event_body_uses_vienna_timezone() -> None:
 def test_date_only_deadline_becomes_all_day_event() -> None:
     task = Task(
         id=1,
-        user_id=1,
+        space_id=1,
+        created_by_id=1,
         title="Оплатити рахунок",
         deadline=datetime(2026, 11, 4, 23, 59, tzinfo=TIMEZONE),
     )

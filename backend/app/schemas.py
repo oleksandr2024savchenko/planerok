@@ -4,7 +4,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from app.config import TIMEZONE
-from app.models import Priority
+from app.models import Priority, SpaceKind, SpaceRole
 
 
 def _to_vienna(value: datetime | None) -> datetime | None:
@@ -23,6 +23,8 @@ class TaskScope(StrEnum):
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
+    # Defaults to the author's personal space.
+    space_id: int | None = None
     description: str | None = None
     category: str | None = Field(default=None, max_length=64)
     priority: Priority = Priority.MEDIUM
@@ -65,6 +67,8 @@ class TaskRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    space_id: int
+    created_by_id: int
     title: str
     description: str | None
     category: str | None
@@ -93,3 +97,26 @@ class CalendarStatusRead(BaseModel):
     def _serialize_last_sync(self, value: datetime | None) -> str | None:
         localized = _to_vienna(value)
         return localized.isoformat() if localized else None
+
+
+class SpaceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    color: str | None
+    icon: str | None
+    kind: SpaceKind
+    role: SpaceRole
+
+
+class MeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    display_name: str
+    locale: str
+    theme: str
+    accent_color: str | None
+    base_currency: str
+    timezone: str

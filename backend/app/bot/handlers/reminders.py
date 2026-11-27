@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callbacks import ReminderAction, ReminderCallback
 from app.bot.texts import format_dt, task_details
+from app.models import User
 from app.services import tasks as tasks_service
 
 router = Router(name="reminders")
@@ -16,8 +17,9 @@ async def on_reminder_action(
     callback: CallbackQuery,
     callback_data: ReminderCallback,
     session: AsyncSession,
+    user: User,
 ) -> None:
-    task = await tasks_service.get_task(session, callback.from_user.id, callback_data.task_id)
+    task = await tasks_service.get_task(session, user.id, callback_data.task_id, write=True)
     if task is None:
         await callback.answer("Задачу не знайдено — можливо, її вже видалено.", show_alert=True)
         return

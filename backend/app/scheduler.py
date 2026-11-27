@@ -13,6 +13,7 @@ from app.bot.texts import reminder_text
 from app.config import TIMEZONE, Settings
 from app.db import session_factory
 from app.models import Task
+from app.services.users import telegram_chat_id
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +92,12 @@ async def send_reminder(task_id: int) -> None:
         task = await session.get(Task, task_id)
         if task is None or task.is_completed:
             return
+        chat_id = await telegram_chat_id(session, task.created_by_id)
+        if chat_id is None:
+            logger.warning("Task %s author has no Telegram identity; reminder skipped", task_id)
+            return
         await _bot.send_message(
-            chat_id=task.user_id,
+            chat_id=chat_id,
             text=reminder_text(task),
             reply_markup=reminder_keyboard(task.id),
         )

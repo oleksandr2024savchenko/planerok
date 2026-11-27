@@ -564,11 +564,17 @@ async def sync_from_google(sync_token: str | None = None) -> str | None:
         if owner is None:
             logger.warning("GOOGLE_OWNER_USER_ID is empty; imported events will not be stored")
         else:
+            from app.services import users as users_service
+
+            owner_user = await users_service.get_or_create_telegram_user(session, owner)
+            owner_space = await users_service.personal_space_id(session, owner_user.id)
             for item in items:
                 change = parse_google_event(item)
                 if change is None:
                     continue
-                task, deleted_id = await _apply_change(session, change, owner=owner, sync_token=next_token)
+                task, deleted_id = await _apply_change(
+                    session, change, owner_id=owner_user.id, space_id=owner_space, sync_token=next_token
+                )
                 if deleted_id is not None:
                     removed.append(deleted_id)
                 elif task is not None:
@@ -595,7 +601,8 @@ async def _apply_change(
     session: AsyncSession,
     change: GoogleEventChange,
     *,
-    owner: int,
+    owner_id: int,
+    space_id: int,
     sync_token: str | None,
 ) -> tuple[Task | None, int | None]:
     task = await session.scalar(select(Task).where(Task.google_event_id == change.event_id))
@@ -617,7 +624,8 @@ async def _apply_change(
         if start is None:
             return None, None
         task = Task(
-            user_id=owner,
+            space_id=space_id,
+            created_by_id=owner_id,
             title=change.title,
             description=change.description,
             category="особисте",

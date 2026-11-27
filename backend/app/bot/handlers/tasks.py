@@ -14,7 +14,7 @@ from app.bot.parser import EmptyTitleError, parse_task
 from app.bot.states import TaskEdit
 from app.bot.texts import ASK_NEW_TIME_TEXT, created_list_text, format_dt, task_details
 from app.config import get_settings
-from app.models import Task
+from app.models import Task, User
 from app.schemas import TaskUpdate
 from app.services import tasks as tasks_service
 from app.services.ai_agent import (
@@ -91,8 +91,9 @@ async def on_edit_time(
     callback_data: TaskActionCallback,
     session: AsyncSession,
     state: FSMContext,
+    user: User,
 ) -> None:
-    task = await tasks_service.get_task(session, callback.from_user.id, callback_data.task_id)
+    task = await tasks_service.get_task(session, user.id, callback_data.task_id, write=True)
     if task is None:
         await callback.answer("Задачу не знайдено — можливо, її вже видалено.", show_alert=True)
         return
@@ -108,8 +109,9 @@ async def on_delete_task(
     callback: CallbackQuery,
     callback_data: TaskActionCallback,
     session: AsyncSession,
+    user: User,
 ) -> None:
-    task = await tasks_service.get_task(session, callback.from_user.id, callback_data.task_id)
+    task = await tasks_service.get_task(session, user.id, callback_data.task_id, write=True)
     if task is None:
         await callback.answer("Задачу вже видалено.", show_alert=True)
         return
@@ -121,7 +123,7 @@ async def on_delete_task(
 
 
 @router.message(TaskEdit.waiting_for_time, F.text)
-async def on_new_reminder_time(message: Message, session: AsyncSession, state: FSMContext) -> None:
+async def on_new_reminder_time(message: Message, session: AsyncSession, state: FSMContext, user: User) -> None:
     if message.from_user is None or message.text is None:
         return
     data = await state.get_data()
@@ -129,7 +131,7 @@ async def on_new_reminder_time(message: Message, session: AsyncSession, state: F
     if not isinstance(task_id, int):
         await state.clear()
         return
-    task = await tasks_service.get_task(session, message.from_user.id, task_id)
+    task = await tasks_service.get_task(session, user.id, task_id, write=True)
     if task is None:
         await state.clear()
         await message.reply("Задачу не знайдено — можливо, її вже видалено.")
@@ -161,7 +163,7 @@ async def on_new_reminder_time(message: Message, session: AsyncSession, state: F
 
 
 @router.message(F.voice)
-async def on_voice_task(message: Message, session: AsyncSession) -> None:
+async def on_voice_task(message: Message, session: AsyncSession, user: User) -> None:
     if message.from_user is None or message.voice is None:
         return
 
@@ -196,7 +198,7 @@ async def on_voice_task(message: Message, session: AsyncSession) -> None:
             await status.edit_text("🤔 Не почув жодного завдання. Спробуй ще раз, трохи конкретніше.")
             return
 
-        created = await _persist_tasks(session, message.from_user.id, extraction)
+        created = await _persist_tasks(session, user.id, extraction)
         await _reply_with_tasks(message, created, status=status)
     except Exception:
         logger.exception(
@@ -211,7 +213,7 @@ async def on_voice_task(message: Message, session: AsyncSession) -> None:
 
 
 @router.message(F.text & ~F.text.startswith("/"))
-async def quick_create_task(message: Message, session: AsyncSession) -> None:
+async def quick_create_task(message: Message, session: AsyncSession, user: User) -> None:
     if message.from_user is None or message.text is None:
         return
 
@@ -230,5 +232,5 @@ async def quick_create_task(message: Message, session: AsyncSession) -> None:
         await status.edit_text("🤔 Не вдалося витягти завдання. Сформулюй конкретніше.")
         return
 
-    created = await _persist_tasks(session, message.from_user.id, extraction)
+    created = await _persist_tasks(session, user.id, extraction)
     await _reply_with_tasks(message, created, status=status)

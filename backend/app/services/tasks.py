@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import scheduler
 from app.config import TIMEZONE
 from app.models import Task
+from app.services import users as users_service
 from app.schemas import TaskCreate, TaskScope, TaskUpdate
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ async def list_tasks(
     scope: TaskScope = TaskScope.ALL,
     category: str | None = None,
 ) -> Sequence[Task]:
-    stmt = select(Task).where(Task.user_id == user_id)
+    stmt = select(Task).where(Task.space_id.in_(users_service.member_space_ids(user_id)))
 
     today_start, tomorrow_start = _day_bounds()
     if scope is TaskScope.TODAY:
@@ -81,9 +82,17 @@ async def list_tasks(
     return result.all()
 
 
-async def get_task(session: AsyncSession, user_id: int, task_id: int) -> Task | None:
+class SpaceAccessError(PermissionError):
+    pass
+
+
+async def get_task(session: AsyncSession, user_id: int, task_id: int, *, write: bool = False) -> Task | None:
+    """Returns the task only if the user is a member of its space (with write access when asked)."""
     task = await session.get(Task, task_id)
-    if task is None or task.user_id != user_id:
+    if task is None:
+        return None
+    role = await users_service.get_role(session, user_id, task.space_id)
+    if role is None or (write and role not in users_service.WRITE_ROLES):
         return None
     return task
 
@@ -95,7 +104,13 @@ async def create_task(
     *,
     push_google: bool = True,
 ) -> Task:
-    task = Task(user_id=user_id, **apply_schedule(data.model_dump()))
+    payload = data.model_dump()
+    space_id = payload.pop("space_id", None)
+    if space_id is None:
+        space_id = await users_service.personal_space_id(session, user_id)
+    elif not await users_service.can_write(session, user_id, space_id):
+        raise SpaceAccessError(f"User {user_id} cannot write to space {space_id}")
+    task = Task(space_id=space_id, created_by_id=user_id, **apply_schedule(payload))
     session.add(task)
     await session.commit()
     await session.refresh(task)
